@@ -26,7 +26,7 @@ public:
     /** Returns a MemorySentinel for the current thread. */
     static MemorySentinel& getInstance();
     
-    void setArmed(bool value) { m_allocationForbidden.store(value); }
+    void setArmed(bool value);
     bool isArmed() const { return m_allocationForbidden.load(); }
 
     static void setTransgressionBehaviour(TransgressionBehaviour b) noexcept { m_transgressionBehaviour.store(b); }
