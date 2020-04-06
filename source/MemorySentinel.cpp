@@ -118,8 +118,9 @@ void operator delete[](void* ptr) noexcept
     return operator delete(ptr);
 }
 
-
-#if defined(__clang__) || defined(__GNUC__)
+// TODO: This *should* work for GLIBC, however, symbols are unresolved in TravisCI environment - that's why we disable it for now
+#define DISABLE_IF_GLIBC 1
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(DISABLE_IF_GLIBC)
 
 static void* (*builtinMalloc)(size_t) = nullptr;
 static void* (*builtinCalloc)(size_t, size_t) = nullptr;
@@ -129,10 +130,10 @@ static void (*builtinFree)(void*) = nullptr;
 static void initMallocHijack()
 {
 #if defined(__GLIBC__ )
-    extern "C" void* __libc_malloc(size_t);
-    extern "C" void* __libc_calloc(size_t, size_t);
-    extern "C" void* __libc_realloc(void*, size_t);
-    extern "C" void __libc_free(void*);
+    extern void* __libc_malloc(size_t);
+    extern void* __libc_calloc(size_t, size_t);
+    extern void* __libc_realloc(void*, size_t);
+    extern void __libc_free(void*);
     builtinMalloc =  __libc_malloc;
     builtinCalloc = __libc_calloc;
     builtinRealloc = __libc_realloc;
