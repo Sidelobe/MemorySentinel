@@ -128,7 +128,7 @@ static void (*builtinFree)(void*) = nullptr;
 
 static void initMallocHijack()
 {
-#if defined(__GLIBC__ )
+#if 0 //defined(__GLIBC__ )
     extern void* __libc_malloc(size_t);
     extern void* __libc_calloc(size_t, size_t);
     extern void* __libc_realloc(void*, size_t);
