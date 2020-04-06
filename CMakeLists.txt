@@ -13,7 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # SOURCE
 file(GLOB_RECURSE source "source/*.h*" "source/*.c*")
-set (LIB_NAME "${CMAKE_PROJECT_NAME}")
+set (LIB_NAME "MemorySentinel")
 
 # TEST TARGET
 set (TEST_NAME "${LIB_NAME}Test")
