@@ -128,15 +128,12 @@ static void (*builtinFree)(void*) = nullptr;
 
 static void initMallocHijack()
 {
-#if 0 //defined(__GLIBC__ )
-    extern void* __libc_malloc(size_t);
-    extern void* __libc_calloc(size_t, size_t);
-    extern void* __libc_realloc(void*, size_t);
-    extern void __libc_free(void*);
-    builtinMalloc =  __libc_malloc;
-    builtinCalloc = __libc_calloc;
-    builtinRealloc = __libc_realloc;
-    builtinFree = __libc_free;
+#if defined(__GLIBC__ )
+    builtinMalloc =  __malloc_hook;
+    builtinCalloc = __malloc_hook; // there is no __calloc_hook
+    builtinRealloc = __realloc_hook;
+    builtinFree = __free_hook;
+
 #else
     builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
     builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
