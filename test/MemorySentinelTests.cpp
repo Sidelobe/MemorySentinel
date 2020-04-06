@@ -47,25 +47,26 @@ TEST_CASE("MemorySentinel Tests")
     
     sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
     sentinel.setArmed(true);
-    REQUIRE(sentinel.isArmed());
     REQUIRE_THROWS(allocWithNew());
-    REQUIRE(heapObject != nullptr);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
 
     sentinel.setArmed(true);
-    REQUIRE(sentinel.isArmed());
     REQUIRE_THROWS(allocWithNewArray());
-    REQUIRE(heapObject != nullptr);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
     
     sentinel.setArmed(true);
-    REQUIRE(sentinel.isArmed());
     REQUIRE_THROWS(allocWithMalloc());
-    REQUIRE(heapObject != nullptr);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
+    
+    sentinel.setArmed(false);
+    auto m = allocWithMalloc();
+    sentinel.setArmed(true);
+    REQUIRE_THROWS(free(m));
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    if (m) free(m);
     
     // After tests, disarm Sentinel
     sentinel.setArmed(false);
