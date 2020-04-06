@@ -119,8 +119,7 @@ void operator delete[](void* ptr) noexcept
 }
 
 // TODO: This *should* work for GLIBC, however, symbols are unresolved in TravisCI environment - that's why we disable it for now
-#define DISABLE_IF_GLIBC 1
-#if (defined(__clang__) || defined(__GNUC__)) && !defined(DISABLE_IF_GLIBC)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
 
 static void* (*builtinMalloc)(size_t) = nullptr;
 static void* (*builtinCalloc)(size_t, size_t) = nullptr;
