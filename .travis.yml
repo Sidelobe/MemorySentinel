@@ -34,7 +34,7 @@ before_script:
     - cd deploy
     - mkdir -p build
     - cd build
-    - cmake -H. -j 2 ../.. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}"
+    - cmake -H. -j 2 ../.. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}
     
 script:
     - make -j 2
