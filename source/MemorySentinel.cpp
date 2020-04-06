@@ -12,6 +12,7 @@
 
 // Note: malloc overwrite only supported on GCC / Clang
 #if defined(__GNUC__) || defined(__clang__)
+    #define _GNU_SOURCE
     #include <dlfcn.h>
 #endif
 
