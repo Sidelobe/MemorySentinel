@@ -122,64 +122,64 @@ static void* (*builtinCalloc)(size_t, size_t) = nullptr;
 static void* (*builtinRealloc)(void*, size_t) = nullptr;
 static void* (*builtinFree)(void*) = nullptr;
 
-static void initMallocHijack()
-{
-    builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
-    assert(builtinMalloc && "Error in dlsym: malloc not found!\n");
-
-    builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
-    assert(builtinCalloc && "Error in dlsym: calloc not found!\n");
-
-    builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
-    assert(builtinRealloc && "Error in dlsym: realloc not found!\n");
-
-    builtinFree = (void* (*)(void*)) dlsym(RTLD_NEXT, "free");
-    assert(builtinFree && "Error in dlsym: free not found!\n");
-}
-
-void* malloc(size_t size)
-{
-    if (builtinMalloc == nullptr) {
-        initMallocHijack();
-    }
-    if (hijackActive) {
-        hijack("allocation with malloc", size);
-    }
-    return builtinMalloc(size);
-}
-
-void* calloc(size_t num, size_t size)
-{
-    if (builtinCalloc == nullptr) {
-        initMallocHijack();
-    }
-    if (hijackActive) {
-        hijack("allocation with calloc", size);
-    }
-    return builtinCalloc(num, size);
-}
-
-void* realloc(void* ptr, size_t size)
-{
-    if (builtinRealloc == nullptr) {
-        initMallocHijack();
-    }
-    if (hijackActive) {
-        hijack("allocation with realloc", size);
-    }
-    return builtinRealloc(ptr, size);
-}
-
-void free(void* ptr)
-{
-    if (builtinFree == nullptr) {
-        initMallocHijack();
-    }
-    if (hijackActive) {
-        hijack("deallocation with free");
-    }
-    builtinFree(ptr);
-}
+//static void initMallocHijack()
+//{
+//    builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
+//    assert(builtinMalloc && "Error in dlsym: malloc not found!\n");
+//
+//    builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+//    assert(builtinCalloc && "Error in dlsym: calloc not found!\n");
+//
+//    builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+//    assert(builtinRealloc && "Error in dlsym: realloc not found!\n");
+//
+//    builtinFree = (void* (*)(void*)) dlsym(RTLD_NEXT, "free");
+//    assert(builtinFree && "Error in dlsym: free not found!\n");
+//}
+//
+//void* malloc(size_t size)
+//{
+//    if (builtinMalloc == nullptr) {
+//        initMallocHijack();
+//    }
+//    if (hijackActive) {
+//        hijack("allocation with malloc", size);
+//    }
+//    return builtinMalloc(size);
+//}
+//
+//void* calloc(size_t num, size_t size)
+//{
+//    if (builtinCalloc == nullptr) {
+//        initMallocHijack();
+//    }
+//    if (hijackActive) {
+//        hijack("allocation with calloc", size);
+//    }
+//    return builtinCalloc(num, size);
+//}
+//
+//void* realloc(void* ptr, size_t size)
+//{
+//    if (builtinRealloc == nullptr) {
+//        initMallocHijack();
+//    }
+//    if (hijackActive) {
+//        hijack("allocation with realloc", size);
+//    }
+//    return builtinRealloc(ptr, size);
+//}
+//
+//void free(void* ptr)
+//{
+//    if (builtinFree == nullptr) {
+//        initMallocHijack();
+//    }
+//    if (hijackActive) {
+//        hijack("deallocation with free");
+//    }
+//    builtinFree(ptr);
+//}
 
 #endif // ifdef GNU/Clang
 

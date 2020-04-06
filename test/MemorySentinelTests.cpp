@@ -60,12 +60,12 @@ TEST_CASE("MemorySentinel Tests")
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
     
-    sentinel.setArmed(true);
-    REQUIRE(sentinel.isArmed());
-    REQUIRE_THROWS(allocWithMalloc());
-    REQUIRE(heapObject != nullptr);
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    // clean-up not necessary, since allocation was intercepted by exception
+//    sentinel.setArmed(true);
+//    REQUIRE(sentinel.isArmed());
+//    REQUIRE_THROWS(allocWithMalloc());
+//    REQUIRE(heapObject != nullptr);
+//    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+//    // clean-up not necessary, since allocation was intercepted by exception
     
     // After tests, disarm Sentinel
     sentinel.setArmed(false);
