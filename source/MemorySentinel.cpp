@@ -14,6 +14,9 @@
 // Note: malloc overwrite only supported on GCC / Clang
 #if defined(__clang__) || defined(__GNUC__)
     #include <dlfcn.h>
+    #if defined(__GLIBC__ )
+        #include <malloc.h>
+    #endif
 #endif
 
 static inline void handleTransgression(const char* optionalMsg, std::size_t size = 0)
