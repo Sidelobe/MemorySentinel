@@ -9,28 +9,19 @@
 
 #include <future>
 #include <string>
+#include <cassert>
 
 // Note: malloc overwrite only supported on GCC / Clang
-#if defined(__GNUC__) || defined(__clang__)
-    #define _GNU_SOURCE
+#if defined(__clang__) || defined(__GNUC__)
     #include <dlfcn.h>
 #endif
 
-std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
-
-MemorySentinel& MemorySentinel::getInstance()
-{
-    thread_local MemorySentinel instance;
-    return instance;
-}
-
-// NOTE: make sure this function is allocation-free, or it could lead tonasty infinite loops!
-static inline void handleTransgression(const char* optionalMsg = "")
+static inline void handleTransgression(const char* optionalMsg, std::size_t size = 0)
 {
     if (MemorySentinel::getInstance().isArmed() == false) {
         return;
     }
-    
+
     MemorySentinel::getInstance().registerTransgression();
     
     switch (MemorySentinel::getTransgressionBehaviour())
@@ -39,7 +30,11 @@ static inline void handleTransgression(const char* optionalMsg = "")
             throw std::bad_alloc();
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
-            printf("[MemorySentinel]: !!Transgression detected!! %s\n", optionalMsg);
+            if (size !=0) {
+                printf("[MemorySentinel]: !!Transgression detected!! %s - %zu Bytes\n", optionalMsg, size);
+            } else {
+                printf("[MemorySentinel]: !!Transgression detected!! %s \n", optionalMsg);
+            }
             break;
         }
         case MemorySentinel::TransgressionBehaviour::SILENT: {
@@ -48,69 +43,155 @@ static inline void handleTransgression(const char* optionalMsg = "")
     }
 }
 
-// MARK: - new
-void* operator new(std::size_t sz) noexcept(false)
+// Using pattern described here: https://stackoverflow.com/a/17850402/649700
+static bool hijackActive = false;
+
+void hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
-    handleTransgression("allocation with new");
-    return std::malloc(sz);
+    hijackActive = false;  // disable before logging
+    handleTransgression(msg, size);
+    hijackActive = true;   // enable after logging
+}
+
+void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+{
+    hijack(msg, size);
+}
+
+// MARK: - new
+void* operator new(std::size_t size) noexcept(false)
+{
+    if (hijackActive) {
+        hijack("allocation with new", size);
+    }
+    return std::malloc(size);
 }
 
 // MARK: - new[]
-void* operator new[](std::size_t sz) noexcept(false)
+void* operator new[](std::size_t size) noexcept(false)
 {
-    handleTransgression("allocation with new[]");
-    return std::malloc(sz);
+    if (hijackActive) {
+        hijack("allocation with new[]", size);
+    }
+    return std::malloc(size);
 }
 
 // MARK: - new nothrow
-void* operator new(std::size_t sz, std::nothrow_t const &) noexcept
+void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 {
-    handleTransgression("allocation with new nothrow");
-    return std::malloc(sz);
+    if (hijackActive) {
+        hijack("allocation with new (nothrow)", size, nt);
+    }
+    return std::malloc(size);
 }
 
 // MARK: - new[] nothrow
-void* operator new[](std::size_t sz, std::nothrow_t const &) noexcept
+void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 {
-    handleTransgression("allocation with new[] nothrow");
-    return std::malloc(sz);
+    if (hijackActive) {
+        hijack("allocation with new[] (nothrow)", size, nt);
+    }
+    return std::malloc(size);
 }
 
 // MARK: - delete
 void operator delete(void* ptr) noexcept
 {
-    handleTransgression("deallocation with delete");
+    if (hijackActive) {
+        hijack("deallocation with delete");
+    }
     std::free(ptr);
 }
 
 // MARK: - delete
 void operator delete[](void* ptr) noexcept
 {
-    handleTransgression("deallocation with delete[]");
+    if (hijackActive) {
+        hijack("deallocation with delete[]");
+    }
     std::free(ptr);
 }
 
-#if defined(__GNUC__) || defined(__clang__)
-// Note: malloc overwrite only supported on GCC / Clang
-// SOURCE: https://stackoverflow.com/a/6083624
-static void* (*realMalloc)(size_t) = nullptr;
 
-static void initRealMalloc()
+#if defined(__clang__) || defined(__GNUC__)
+static void* (*builtinMalloc)(size_t) = nullptr;
+static void* (*builtinCalloc)(size_t, size_t) = nullptr;
+static void* (*builtinRealloc)(void*, size_t) = nullptr;
+static void* (*builtinFree)(void*) = nullptr;
+
+static void initMallocHijack()
 {
-    realMalloc = (void* (*)(size_t))dlsym(RTLD_NEXT, "malloc");
-    if (realMalloc == nullptr) {
-        printf("Error in dlsym: malloc not found!\n");
-        exit(EXIT_FAILURE);
-    }
+    builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
+    assert(builtinMalloc && "Error in dlsym: malloc not found!\n");
+
+    builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+    assert(builtinCalloc && "Error in dlsym: calloc not found!\n");
+
+    builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+    assert(builtinRealloc && "Error in dlsym: realloc not found!\n");
+
+    builtinFree = (void* (*)(void*)) dlsym(RTLD_NEXT, "free");
+    assert(builtinFree && "Error in dlsym: free not found!\n");
 }
 
-void* malloc(size_t sz)
+void* malloc(size_t size)
 {
-    if (realMalloc == nullptr) {
-        initRealMalloc();
+    if (builtinMalloc == nullptr) {
+        initMallocHijack();
     }
-
-    handleTransgression("allocation with malloc");
-    return realMalloc(sz);
+    if (hijackActive) {
+        hijack("allocation with malloc", size);
+    }
+    return builtinMalloc(size);
 }
+
+void* calloc(size_t num, size_t size)
+{
+    if (builtinCalloc == nullptr) {
+        initMallocHijack();
+    }
+    if (hijackActive) {
+        hijack("allocation with calloc", size);
+    }
+    return builtinCalloc(num, size);
+}
+
+void* realloc(void* ptr, size_t size)
+{
+    if (builtinRealloc == nullptr) {
+        initMallocHijack();
+    }
+    if (hijackActive) {
+        hijack("allocation with realloc", size);
+    }
+    return builtinRealloc(ptr, size);
+}
+
+void free(void* ptr)
+{
+    if (builtinFree == nullptr) {
+        initMallocHijack();
+    }
+    if (hijackActive) {
+        hijack("deallocation with free");
+    }
+    builtinFree(ptr);
+}
+
 #endif // ifdef GNU/Clang
+
+
+// MARK: - MemorySentinel initialization
+std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
+
+MemorySentinel& MemorySentinel::getInstance()
+{
+    thread_local MemorySentinel instance;
+    return instance;
+}
+
+void MemorySentinel::setArmed(bool value)
+{
+    m_allocationForbidden.store(value);
+    hijackActive = true;
+}
