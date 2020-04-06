@@ -59,7 +59,7 @@ void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
 }
 
 // MARK: - new
-void* operator new(std::size_t size) noexcept(false)
+void* ::operator new(std::size_t size) noexcept(false)
 {
     if (hijackActive) {
         hijack("allocation with new", size);
@@ -68,34 +68,34 @@ void* operator new(std::size_t size) noexcept(false)
 }
 
 // MARK: - new[]
-void* operator new[](std::size_t size) noexcept(false)
+void* ::operator new[](std::size_t size) noexcept(false)
 {
     if (hijackActive) {
         hijack("allocation with new[]", size);
     }
-    return std::malloc(size);
+    return operator new(size);
 }
 
 // MARK: - new nothrow
-void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
+void* ::operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (hijackActive) {
         hijack("allocation with new (nothrow)", size, nt);
     }
-    return std::malloc(size);
+    return operator new(size);
 }
 
 // MARK: - new[] nothrow
-void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
+void* ::operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (hijackActive) {
         hijack("allocation with new[] (nothrow)", size, nt);
     }
-    return std::malloc(size);
+    return operator new(size);
 }
 
 // MARK: - delete
-void operator delete(void* ptr) noexcept
+void ::operator delete(void* ptr) noexcept
 {
     if (hijackActive) {
         hijack("deallocation with delete");
@@ -104,12 +104,12 @@ void operator delete(void* ptr) noexcept
 }
 
 // MARK: - delete
-void operator delete[](void* ptr) noexcept
+void ::operator delete[](void* ptr) noexcept
 {
     if (hijackActive) {
         hijack("deallocation with delete[]");
     }
-    std::free(ptr);
+    return operator delete(ptr);
 }
 
 
