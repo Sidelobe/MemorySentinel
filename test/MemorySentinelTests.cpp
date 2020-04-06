@@ -55,21 +55,23 @@ TEST_CASE("MemorySentinel Tests")
     REQUIRE_THROWS(allocWithNewArray());
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
-    
+
+#if !defined(__GLIBC__)
     sentinel.setArmed(true);
     REQUIRE_THROWS(allocWithMalloc());
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
-    
+
     sentinel.setArmed(false);
     auto m = allocWithMalloc();
     sentinel.setArmed(true);
     REQUIRE_THROWS(free(m));
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     if (m) free(m);
+#endif
     
-    // After tests, disarm Sentinel
     sentinel.setArmed(false);
+    // After tests, disarm Sentinel
     sentinel.clearTransgressions();
 }
 
