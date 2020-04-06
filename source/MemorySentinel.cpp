@@ -99,6 +99,7 @@ static void initRealMalloc()
     realMalloc = (void* (*)(size_t))dlsym(RTLD_NEXT, "malloc");
     if (realMalloc == nullptr) {
         printf("Error in dlsym: malloc not found!\n");
+        exit(EXIT_FAILURE);
     }
 }
 
