@@ -7,9 +7,9 @@
 
 #include "MemorySentinel.hpp"
 
+#include <cstdlib>
 #include <future>
 #include <string>
-#include <cassert>
 
 // Note: malloc overwrite only supported on GCC / Clang
 #if defined(__clang__) || defined(__GNUC__)
