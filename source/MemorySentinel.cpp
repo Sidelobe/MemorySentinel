@@ -124,7 +124,7 @@ void operator delete[](void* ptr) noexcept
 static void* (*builtinMalloc)(size_t) = nullptr;
 static void* (*builtinCalloc)(size_t, size_t) = nullptr;
 static void* (*builtinRealloc)(void*, size_t) = nullptr;
-static void* (*builtinFree)(void*) = nullptr;
+static void (*builtinFree)(void*) = nullptr;
 
 static void initMallocHijack()
 {
@@ -133,15 +133,15 @@ static void initMallocHijack()
     extern void* __libc_calloc(size_t, size_t);
     extern void* __libc_realloc(void*, size_t);
     extern void __libc_free(void*);
-    builtinMalloc = (void* (*)(size_t)) __libc_malloc;
-    builtinCalloc = (void* (*)(size_t, size_t)) __libc_calloc;
-    builtinRealloc = (void* (*)(void*, size_t)) __libc_realloc;
-    builtinFree = (void* (*)(void*)) __libc_free;
+    builtinMalloc =  __libc_malloc;
+    builtinCalloc = __libc_calloc;
+    builtinRealloc = __libc_realloc;
+    builtinFree = __libc_free;
 #else
     builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
     builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
     builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
-    builtinFree = (void* (*)(void*)) dlsym(RTLD_NEXT, "free");
+    builtinFree = (void (*)(void*)) dlsym(RTLD_NEXT, "free");
 #endif
     
     if (!(builtinMalloc && builtinCalloc && builtinRealloc && builtinFree)) {
