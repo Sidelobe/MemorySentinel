@@ -1,6 +1,6 @@
 # Travis configuration file for HyperBuffer
 language:
-    - generic # if this is cpp -- Travis replaces compiler and stdlib with older versions
+    - cpp
 matrix:
     include:
         - os: osx
@@ -23,7 +23,7 @@ matrix:
           env:
             - COMPILER="g++-7"
             - C_COMPILER="gcc-7"
-            - EXTRA_CXX_FLAGS="-stdlib=libc++"
+            - EXTRA_CXX_FLAGS=""
          
 before_script:
     # Export CXX to tell cmake which compiler to use
