@@ -209,5 +209,5 @@ MemorySentinel& MemorySentinel::getInstance()
 void MemorySentinel::setArmed(bool value)
 {
     m_allocationForbidden.store(value);
-    hijackActive = true;
+    hijackActive = value;
 }
