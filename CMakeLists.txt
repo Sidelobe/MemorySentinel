@@ -37,4 +37,4 @@ target_include_directories(${TEST_NAME} PRIVATE source)
 target_include_directories(${TEST_NAME} PRIVATE test)
 target_include_directories(${TEST_NAME} PRIVATE test/external-utils)
 
-target_link_libraries(${TEST_NAME} dl)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
