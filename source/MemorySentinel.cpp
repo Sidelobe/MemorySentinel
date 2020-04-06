@@ -48,42 +48,42 @@ static inline void handleTransgression(const char* optionalMsg = "")
 }
 
 // MARK: - new
-void* operator new(std::size_t sz) throw (std::bad_alloc)
+void* operator new(std::size_t sz) noexcept(false)
 {
     handleTransgression("allocation with new");
     return std::malloc(sz);
 }
 
 // MARK: - new[]
-void* operator new[](std::size_t sz) throw (std::bad_alloc)
+void* operator new[](std::size_t sz) noexcept(false)
 {
     handleTransgression("allocation with new[]");
     return std::malloc(sz);
 }
 
 // MARK: - new nothrow
-void* operator new(std::size_t sz, std::nothrow_t const &) throw ()
+void* operator new(std::size_t sz, std::nothrow_t const &) noexcept
 {
     handleTransgression("allocation with new nothrow");
     return std::malloc(sz);
 }
 
 // MARK: - new[] nothrow
-void* operator new[](std::size_t sz, std::nothrow_t const &) throw ()
+void* operator new[](std::size_t sz, std::nothrow_t const &) noexcept
 {
     handleTransgression("allocation with new[] nothrow");
     return std::malloc(sz);
 }
 
 // MARK: - delete
-void operator delete(void* ptr) throw()
+void operator delete(void* ptr) noexcept
 {
     handleTransgression("deallocation with delete");
     std::free(ptr);
 }
 
 // MARK: - delete
-void operator delete[](void* ptr) throw()
+void operator delete[](void* ptr) noexcept
 {
     handleTransgression("deallocation with delete[]");
     std::free(ptr);

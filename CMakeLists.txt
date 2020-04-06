@@ -36,3 +36,5 @@ endforeach()
 target_include_directories(${TEST_NAME} PRIVATE source)
 target_include_directories(${TEST_NAME} PRIVATE test)
 target_include_directories(${TEST_NAME} PRIVATE test/external-utils)
+
+target_link_libraries(${TEST_NAME} dl)
