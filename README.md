@@ -34,9 +34,10 @@ Scoped usage:
 
 ```cpp
 {
-	ScopedMemorySentinel sentinel;	
-	float* heapObject = new float[32];  
-} // will assert upon exiting scope
+  ScopedMemorySentinel sentinel;	
+  float* heapObject = new float[32];  
+} 
+// will assert upon exiting scope
 ```
 
 
