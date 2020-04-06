@@ -1,6 +1,6 @@
 # Travis configuration file for HyperBuffer
 language:
-    - cpp
+    - generic # if this is cpp -- Travis replaces compiler and stdlib with older versions
 matrix:
     include:
         - os: osx
