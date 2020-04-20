@@ -56,7 +56,7 @@ TEST_CASE("MemorySentinel Tests")
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
 
-#if !defined(__GLIBC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
     sentinel.setArmed(true);
     REQUIRE_THROWS(allocWithMalloc());
     REQUIRE(sentinel.getAndClearTransgressionsOccured());

@@ -41,7 +41,9 @@ target_include_directories(${TEST_NAME} PRIVATE test)
 target_include_directories(${TEST_NAME} PRIVATE test/external-utils)
 
 target_link_libraries(${TEST_NAME} ${LIB_NAME})
-target_link_libraries(${TEST_NAME} dl)
+if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
+    target_link_libraries(${TEST_NAME} dl)
+endif()
 
 ## ENABLE THE USE OF CTEST 
 include("test/external-utils/catch2/ParseAndAddCatchTests.cmake")

@@ -24,7 +24,10 @@ matrix:
             - COMPILER="g++-7"
             - C_COMPILER="gcc-7"
             - EXTRA_CXX_FLAGS=""
-         
+            
+        - os: windows
+          env: MSBUILD_PATH="c:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin"
+           
 before_script:
     # Export CXX to tell cmake which compiler to use
     - export CXX=${COMPILER}
@@ -36,9 +39,19 @@ before_script:
     - cd deploy
     - mkdir -p build
     - cd build
-    - cmake -H. -j 2 ../.. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="${EXTRA_CXX_FLAGS}"
+    - if [ "$TRAVIS_OS_NAME" != "windows" ]; then cmake -H. -j 2 ../.. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="${EXTRA_CXX_FLAGS}"; fi
+    - if [ "$TRAVIS_OS_NAME" == "windows" ]; then export PATH=$MSBUILD_PATH:$PATH; cmake -G "Visual Studio 15 2017" -DCMAKE_GENERATOR_PLATFORM=x64 ../..; fi
     
 script:
-    - make -j 2
-    - ./MemorySentinelTest
+    - |
+      if [ "${TRAVIS_OS_NAME}" == "windows" ]; then
+          cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64
+          cmd.exe //C "MSBuild.exe MemorySentinel.sln" //m:2 //nologo //verbosity:quiet //p:Configuration=Debug //p:Platform=x64
+          ./Debug/MemorySentinelTest.exe
+      else
+          make -j 2
+          ./MemorySentinelTest
+      fi
+    
+
     
