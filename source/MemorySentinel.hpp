@@ -59,7 +59,7 @@ public:
     ScopedMemorySentinel()
     {
         auto& sentinel = MemorySentinel::getInstance();
-        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
         sentinel.clearTransgressions();
         sentinel.setArmed(true);
     }
