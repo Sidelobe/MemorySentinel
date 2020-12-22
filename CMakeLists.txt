@@ -45,6 +45,11 @@ if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU
     target_link_libraries(${TEST_NAME} dl)
 endif()
 
+# Explicitly set CMP0110 to "NEW" to allow whitespace in tests names
+if(POLICY CMP0110)
+  cmake_policy(SET CMP0110 NEW)
+endif()
+
 ## ENABLE THE USE OF CTEST 
 include("test/external-utils/catch2/ParseAndAddCatchTests.cmake")
 #include(CTest) # this will generate lots of additional targets
