@@ -62,64 +62,9 @@ void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
     hijack(msg, size);
 }
 
-// MARK: - new
-void* operator new(std::size_t size) noexcept(false)
-{
-    if (isHijackActive) {
-        hijack("allocation with new", size);
-    }
-    if (size == 0) { // Handle 0-byte requests by treating them as 1-byte requests
-      size = 1;
-    }
-    return std::malloc(size);
-}
-
-// MARK: - new[]
-void* operator new[](std::size_t size) noexcept(false)
-{
-    if (isHijackActive) {
-        hijack("allocation with new[]", size);
-    }
-    return operator new(size);
-}
-
-// MARK: - new nothrow
-void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
-{
-    if (isHijackActive) {
-        hijack("allocation with new (nothrow)", size, nt);
-    }
-    return operator new(size);
-}
-
-// MARK: - new[] nothrow
-void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
-{
-    if (isHijackActive) {
-        hijack("allocation with new[] (nothrow)", size, nt);
-    }
-    return operator new(size);
-}
-
-// MARK: - delete
-void operator delete(void* ptr) noexcept
-{
-    if (isHijackActive) {
-        hijack("deallocation with delete");
-    }
-    std::free(ptr);
-}
-
-// MARK: - delete
-void operator delete[](void* ptr) noexcept
-{
-    if (isHijackActive) {
-        hijack("deallocation with delete[]");
-    }
-    return operator delete(ptr);
-}
-
-// TODO: This *should* work for GLIBC, however, symbols are unresolved in TravisCI environment - that's why we disable it for now
+// --------------------------------------------------------------------------------------------------------------------
+// MARK: - Hijack malloc/free
+// TODO: This should work for GLIBC, however, symbols are unresolved in TravisCI environment - that's why we disable it for now
 #if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
 
 static void* (*builtinMalloc)(size_t) = nullptr;
@@ -197,9 +142,69 @@ void free(void* ptr)
 
 #endif // ifdef GNU/Clang
 
+// --------------------------------------------------------------------------------------------------------------------
+// MARK: - new
+void* operator new(std::size_t size) noexcept(false)
+{
+    if (isHijackActive) {
+        hijack("allocation with new", size);
+    }
+    if (size == 0) { // Handle 0-byte requests by treating them as 1-byte requests
+      size = 1;
+    }
+    return std::malloc(size);
+}
 
-// MARK: - MemorySentinel initialization
+// MARK: - new[]
+void* operator new[](std::size_t size) noexcept(false)
+{
+    if (isHijackActive) {
+        hijack("allocation with new[]", size);
+    }
+    return std::malloc(size);
+}
+
+// MARK: - new nothrow
+void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
+{
+    if (isHijackActive) {
+        hijack("allocation with new (nothrow)", size, nt);
+    }
+    return std::malloc(size);
+}
+
+// MARK: - new[] nothrow
+void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
+{
+    if (isHijackActive) {
+        hijack("allocation with new[] (nothrow)", size, nt);
+    }
+    return std::malloc(size);
+}
+
+// MARK: - delete
+void operator delete(void* ptr) noexcept
+{
+    if (isHijackActive) {
+        hijack("deallocation with delete");
+    }
+    std::free(ptr);
+}
+
+// MARK: - delete
+void operator delete[](void* ptr) noexcept
+{
+    if (isHijackActive) {
+        hijack("deallocation with delete[]");
+    }
+    std::free(ptr);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// MARK: - MemorySentinel
+// initialization (static non-const must be initialized out out line
 std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
+std::atomic<int> MemorySentinel::m_allocationQuota(0);
 
 MemorySentinel& MemorySentinel::getInstance()
 {
