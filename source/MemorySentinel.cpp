@@ -47,13 +47,14 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
 }
 
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
-static bool hijackActive = false;
+static bool isHijackActive = false;
 
 void hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
-    hijackActive = false;  // disable before logging
+    // Disabling 'hijack' while running 'trangression handler'
+    isHijackActive = false;
     handleTransgression(msg, size);
-    hijackActive = true;   // enable after logging
+    isHijackActive = true;
 }
 
 void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
@@ -64,7 +65,7 @@ void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
 // MARK: - new
 void* operator new(std::size_t size) noexcept(false)
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with new", size);
     }
     if (size == 0) { // Handle 0-byte requests by treating them as 1-byte requests
@@ -76,7 +77,7 @@ void* operator new(std::size_t size) noexcept(false)
 // MARK: - new[]
 void* operator new[](std::size_t size) noexcept(false)
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with new[]", size);
     }
     return operator new(size);
@@ -85,7 +86,7 @@ void* operator new[](std::size_t size) noexcept(false)
 // MARK: - new nothrow
 void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with new (nothrow)", size, nt);
     }
     return operator new(size);
@@ -94,7 +95,7 @@ void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 // MARK: - new[] nothrow
 void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with new[] (nothrow)", size, nt);
     }
     return operator new(size);
@@ -103,7 +104,7 @@ void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 // MARK: - delete
 void operator delete(void* ptr) noexcept
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("deallocation with delete");
     }
     std::free(ptr);
@@ -112,7 +113,7 @@ void operator delete(void* ptr) noexcept
 // MARK: - delete
 void operator delete[](void* ptr) noexcept
 {
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("deallocation with delete[]");
     }
     return operator delete(ptr);
@@ -155,7 +156,7 @@ void* malloc(size_t size)
     if (builtinMalloc == nullptr) {
         initMallocHijack();
     }
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with malloc", size);
     }
     return builtinMalloc(size);
@@ -166,7 +167,7 @@ void* calloc(size_t num, size_t size)
     if (builtinCalloc == nullptr) {
         initMallocHijack();
     }
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with calloc", size);
     }
     return builtinCalloc(num, size);
@@ -177,7 +178,7 @@ void* realloc(void* ptr, size_t size)
     if (builtinRealloc == nullptr) {
         initMallocHijack();
     }
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("allocation with realloc", size);
     }
     return builtinRealloc(ptr, size);
@@ -188,7 +189,7 @@ void free(void* ptr)
     if (builtinFree == nullptr) {
         initMallocHijack();
     }
-    if (hijackActive) {
+    if (isHijackActive) {
         hijack("deallocation with free");
     }
     builtinFree(ptr);
@@ -209,5 +210,5 @@ MemorySentinel& MemorySentinel::getInstance()
 void MemorySentinel::setArmed(bool value)
 {
     m_allocationForbidden.store(value);
-    hijackActive = value;
+    isHijackActive = value;
 }
