@@ -32,6 +32,9 @@ public:
     static void setTransgressionBehaviour(TransgressionBehaviour b) noexcept { m_transgressionBehaviour.store(b); }
     static TransgressionBehaviour getTransgressionBehaviour() noexcept { return m_transgressionBehaviour.load(); }
 
+    static void setAllocationQuota(int numBytes) noexcept { m_allocationQuota.store(numBytes); }
+    static int getRemainingAllocationQuota() noexcept { return m_allocationQuota.load(); }
+
     void registerTransgression() { m_transgressionOccured.store(true); }
     void clearTransgressions() { m_transgressionOccured.exchange(false); }
     bool hasTransgressionOccured() { return m_transgressionOccured.load(); }
@@ -48,6 +51,8 @@ private:
     MemorySentinel() = default; // Singleton = private ctor
     
     static std::atomic<TransgressionBehaviour> m_transgressionBehaviour;
+    static std::atomic<int> m_allocationQuota; // allocation Quota in bytes
+    
     std::atomic<bool> m_allocationForbidden { false };
     std::atomic<bool> m_transgressionOccured { false };
 };
@@ -56,10 +61,15 @@ private:
 class ScopedMemorySentinel
 {
 public:
-    ScopedMemorySentinel()
+    ScopedMemorySentinel(int allocationQuotaBytes = 0)
     {
+        MemorySentinel::setAllocationQuota(allocationQuotaBytes);
+        if (allocationQuotaBytes > 0) {
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+        } else {
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
+        }
         auto& sentinel = MemorySentinel::getInstance();
-        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
         sentinel.clearTransgressions();
         sentinel.setArmed(true);
     }
