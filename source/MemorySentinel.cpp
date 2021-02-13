@@ -38,7 +38,11 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
+        #ifdef EXCEPTIONS_DISABLED
+            assert(false && "[Exceptions disabled]");
+        #else
             throw std::bad_alloc();
+        #endif
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
             if (size !=0) {

@@ -11,6 +11,14 @@
 
 #include <vector>
 
+// When exceptions are disbled, we redefine catch2's REQUIRE_THROWS, so we can compile.
+// Any REQUIRE_THROWS statements in tests will dissappear / do nothing
+#ifdef EXCEPTIONS_DISABLED
+    #define REQUIRE_THROWS_CATCH2 REQUIRE_THROWS
+    #undef REQUIRE_THROWS
+    #define REQUIRE_THROWS(...)
+#endif
+
 static decltype(auto) allocWithNew()
 {
     return new std::vector<float>(32);

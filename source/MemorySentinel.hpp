@@ -10,6 +10,14 @@
 #include <atomic>
 #include <cassert>
 
+// Macro to detect if exceptions are disabled (works on GCC, Clang and MSVC)
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if !__has_feature(cxx_exceptions) && !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)
+  #define EXCEPTIONS_DISABLED
+#endif
+
 /**
  * Singleton that hijacks all calls on new, new[], delete and delete[] as well as malloc/free.
  * This is useful to detect whether memory has been allocated in unit tests.
@@ -80,6 +88,7 @@ public:
         sentinel.setArmed(false);
         if (sentinel.getAndClearTransgressionsOccured() &&
             sentinel.getTransgressionBehaviour() != MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION) {
+            
             assert(false && "MemorySentinel was triggered!");
         }
     }
