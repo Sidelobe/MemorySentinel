@@ -13,6 +13,14 @@ matrix:
             - EXTRA_CXX_FLAGS="-stdlib=libc++"
           
         - os: linux
+          arch: arm64
+          compiler: gcc
+          env:
+            - COMPILER="g++"
+            - C_COMPILER="gcc"
+            - EXTRA_CXX_FLAGS=""
+          
+        - os: linux
           dist: bionic
           compiler: gcc
           
