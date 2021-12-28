@@ -13,6 +13,7 @@ matrix:
             - EXTRA_CXX_FLAGS="-stdlib=libc++"
           
         - os: linux
+          dist: bionic
           arch: arm64-graviton2
           virt: lxd
           group: edge
