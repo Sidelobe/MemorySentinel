@@ -14,6 +14,29 @@ matrix:
           
         - os: linux
           dist: bionic
+          arch: arm64-graviton2
+          virt: lxd
+          group: edge
+          env:
+            - COMPILER="g++"
+            - C_COMPILER="gcc"
+            - EXTRA_CXX_FLAGS=""
+
+        - os: linux
+          dist: bionic
+          compiler: gcc
+          
+          addons:
+              apt:
+                  sources: ['ubuntu-toolchain-r-test']
+                  packages: ['g++-11']
+          env:
+            - COMPILER="g++-11"
+            - C_COMPILER="gcc-11"
+            - EXTRA_CXX_FLAGS=""
+                      
+        - os: linux
+          dist: bionic
           compiler: gcc
           
           addons:
