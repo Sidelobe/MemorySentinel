@@ -13,8 +13,9 @@ matrix:
             - EXTRA_CXX_FLAGS="-stdlib=libc++"
           
         - os: linux
-          arch: arm64
-          compiler: gcc
+          arch: arm64-graviton2
+          virt: lxd
+          group: edge
           env:
             - COMPILER="g++"
             - C_COMPILER="gcc"
