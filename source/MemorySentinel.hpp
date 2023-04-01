@@ -15,7 +15,7 @@
 #define __has_feature(x) 0
 #endif
 #if !__has_feature(cxx_exceptions) && !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)
-  #define EXCEPTIONS_DISABLED
+  #define SLB_EXCEPTIONS_DISABLED
 #endif
 
 /**
