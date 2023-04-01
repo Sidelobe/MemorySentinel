@@ -53,7 +53,7 @@ sentinel.clearTransgressions();
 ### Requirements / Compatibility
  - C++14
  - STL
- - tested with GCC 7.x and Clang 11.x
+ - tested with GCC, Clang and MSVC
  - tested with Catch2 Test Framework
  - tested on macos, windows & linux
 
