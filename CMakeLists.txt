@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CODE_COVERAGE OFF CACHE BOOL "Build with instrumentation and code coverage")
+
 # SOURCE
 file(GLOB_RECURSE source "source/*.h*" "source/*.c*")
 set (LIB_NAME "MemorySentinel")
@@ -43,6 +45,15 @@ target_include_directories(${TEST_NAME} PRIVATE test/external-utils)
 target_link_libraries(${TEST_NAME} ${LIB_NAME})
 if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
     target_link_libraries(${TEST_NAME} dl)
+endif()
+
+if (CODE_COVERAGE)
+  message("Code Coverage tracking enabled")
+  # When building with coverage, we disable exceptions, for more meaningful results
+  target_compile_options(${TEST_NAME} PRIVATE
+          $<$<COMPILE_LANGUAGE:CXX>:-fprofile-arcs -ftest-coverage -fno-exceptions -fno-inline>
+          $<$<COMPILE_LANGUAGE:C>:-fprofile-arcs -ftest-coverage -fno-exceptions -fno-inline>)
+  target_link_options(${TEST_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
 endif()
 
 # Explicitly set CMP0110 to "NEW" to allow whitespace in tests names
