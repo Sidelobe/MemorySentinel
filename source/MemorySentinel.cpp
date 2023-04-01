@@ -25,11 +25,11 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
         return;
     }
     
-    int availableQuota = MemorySentinel::getInstance().getRemainingAllocationQuota();
+    int availableQuota = MemorySentinel::getRemainingAllocationQuota();
     if (availableQuota > 0 && size <= availableQuota) {
-        MemorySentinel::getInstance().setAllocationQuota(availableQuota - static_cast<int>(size));
+        MemorySentinel::setAllocationQuota(availableQuota - static_cast<int>(size));
         printf("[MemorySentinel]: permitted allocation in %s - %zu Bytes quota remaining\n",
-               optionalMsg, static_cast<std::size_t>(MemorySentinel::getInstance().getRemainingAllocationQuota()));
+               optionalMsg, static_cast<std::size_t>(MemorySentinel::getRemainingAllocationQuota()));
         return; // this allocation was allowed
     }
 
