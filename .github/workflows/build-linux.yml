@@ -16,7 +16,7 @@ jobs:
         cxx:
           - g++-7
           - g++-11
-        build_type: [Debug,  Release]
+        build_type: [Debug, Release]
         std: [14]
         include:
           - cxx: g++-7

@@ -9,10 +9,12 @@ on:
     
 jobs:
   build:
-    name: Linux, GCC, Debug, Coverage & SonarQube
+    name: Linux, GCC, Release, Coverage & SonarQube
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: '$GITHUB_WORKSPACE/deploy/build/bw-output' # Directory where build-wrapper output will be placed
+      cxx: g++-11
+      cc: gcc-11
     steps:
     - uses: actions/checkout@v3
       with:
@@ -22,14 +24,19 @@ jobs:
         pip3 install gcovr
         echo "Gcovr Updated!"
         gcovr --version
+        
+        sudo apt-get install -y g++-11 gcc-11
     - name: Install sonar-scanner and build-wrapper
       uses: SonarSource/sonarcloud-github-c-cpp@v1
     - name: Setup & Cmake
       working-directory: deploy
+      env:
+        CC: ${{env.cc}}
+        CXX: ${{env.cxx}}
       run: |
         mkdir -p build
         cd build
-        cmake -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=Yes ../..
+        cmake -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=Yes ../..
         
     - name: Build & Run Tests
       env:

@@ -64,4 +64,14 @@ sentinel.clearTransgressions();
 [![Sidelobe Build Matrix macos](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml)
 [![Sidelobe Build Matrix Windows](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml)
 
+MemorySentinel
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=bugs)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=security_rating)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=sqale_index)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
 
