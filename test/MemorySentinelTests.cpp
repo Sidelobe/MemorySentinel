@@ -30,7 +30,6 @@ static decltype(auto) allocWithNewArray()
 {
     return new float[32];
 }
-
 static decltype(auto) allocWithMalloc()
 {
     return std::malloc(32*sizeof(float));
@@ -55,7 +54,9 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     REQUIRE(heapObject != nullptr);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     delete heapObject; // clean up
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
     
+#ifndef SLB_EXCEPTIONS_DISABLED
     sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
     sentinel.setArmed(true);
     REQUIRE_THROWS(allocWithNew());
@@ -67,18 +68,19 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // clean-up not necessary, since allocation was intercepted by exception
     
-#if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
-    sentinel.setArmed(true);
-    REQUIRE_THROWS(allocWithMalloc());
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    // clean-up not necessary, since allocation was intercepted by exception
-    
-    sentinel.setArmed(false);
-    auto m = allocWithMalloc();
-    sentinel.setArmed(true);
-    REQUIRE_THROWS(free(m));
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    if (m) free(m);
+    #if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
+        sentinel.setArmed(true);
+        REQUIRE_THROWS(allocWithMalloc());
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        // clean-up not necessary, since allocation was intercepted by exception
+        
+        sentinel.setArmed(false);
+        auto m = allocWithMalloc();
+        sentinel.setArmed(true);
+        REQUIRE_THROWS(free(m));
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        if (m) free(m);
+    #endif
 #endif
     
     sentinel.setArmed(false);

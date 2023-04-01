@@ -15,7 +15,7 @@
 #define __has_feature(x) 0
 #endif
 #if !__has_feature(cxx_exceptions) && !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)
-  #define SLB_EXCEPTIONS_DISABLED
+  #define SLB_EXCEPTIONS_DISABLED 1
 #endif
 
 /**
@@ -45,7 +45,7 @@ public:
 
     void registerTransgression() { m_transgressionOccured.store(true); }
     void clearTransgressions() { m_transgressionOccured.exchange(false); }
-    bool hasTransgressionOccured() { return m_transgressionOccured.load(); }
+    bool hasTransgressionOccured() const { return m_transgressionOccured.load(); }
     
     /** NOTE: this clear the transgression upon call */
     bool getAndClearTransgressionsOccured() noexcept
