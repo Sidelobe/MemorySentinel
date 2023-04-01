@@ -37,7 +37,7 @@ jobs:
       working-directory: deploy/build
       run: |
         build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}  make -j 4
-        ./AudioTraitsTest
+        ./MemorySentinelTest
         cd ..
         mkdir -p report
         # Generate coverage report
