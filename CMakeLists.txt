@@ -47,6 +47,14 @@ if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU
     target_link_libraries(${TEST_NAME} dl)
 endif()
 
+# Compiler Settings
+target_compile_options(${TEST_NAME} PRIVATE
+    # additional warnings for GCC
+    $<$<CXX_COMPILER_ID:GNU>:
+    -fno-permissive  
+    >
+)
+
 if (CODE_COVERAGE)
   message("Code Coverage tracking enabled")
   # When building with coverage, we disable exceptions, for more meaningful results
