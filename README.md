@@ -59,8 +59,9 @@ sentinel.clearTransgressions();
 
 ### Status
 
-![](https://img.shields.io/badge/branch-master-blue)
-[![Build Status (master)](https://travis-ci.com/Sidelobe/MemorySentinel.svg?branch=master)](https://travis-ci.com/Sidelobe/MemorySentinel)
+![](https://img.shields.io/badge/branch-main-blue)
+[![Sidelobe Build Matrix Linux](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-linux.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-linux.yml)
+[![Sidelobe Build Matrix macos](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml)
+[![Sidelobe Build Matrix Windows](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml)
 
-![](https://img.shields.io/badge/branch-develop-blue)
-[![Build Status (develop)](https://travis-ci.com/Sidelobe/MemorySentinel.svg?branch=develop)](https://travis-ci.com/Sidelobe/MemorySentinel) 
+
