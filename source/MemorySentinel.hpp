@@ -87,7 +87,7 @@ public:
         auto& sentinel = MemorySentinel::getInstance();
         sentinel.setArmed(false);
         if (sentinel.getAndClearTransgressionsOccured() &&
-            sentinel.getTransgressionBehaviour() != MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION) {
+            MemorySentinel::getTransgressionBehaviour() != MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION) {
             
             assert(false && "MemorySentinel was triggered!");
         }

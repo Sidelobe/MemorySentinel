@@ -49,10 +49,11 @@ endif()
 
 if (CODE_COVERAGE)
   message("Code Coverage tracking enabled")
-  # When building with coverage, we disable exceptions, for more meaningful results
+  # When building with coverage, we normally disable exceptions, for more meaningful results
+  # here, however, exceptions constitute a desirable and test-worthy behaviour
   target_compile_options(${TEST_NAME} PRIVATE
-          $<$<COMPILE_LANGUAGE:CXX>:-fprofile-arcs -ftest-coverage -fno-exceptions -fno-inline>
-          $<$<COMPILE_LANGUAGE:C>:-fprofile-arcs -ftest-coverage -fno-exceptions -fno-inline>)
+          $<$<COMPILE_LANGUAGE:CXX>:-fprofile-arcs -ftest-coverage -fexceptions -fno-inline>
+          $<$<COMPILE_LANGUAGE:C>:-fprofile-arcs -ftest-coverage -fexceptions -fno-inline>)
   target_link_options(${TEST_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
 endif()
 
