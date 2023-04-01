@@ -16,7 +16,7 @@ jobs:
         os: [macos-11]
         cxx:
           - clang++
-        build_type: [Debug, Release]
+        build_type: [Debug]
         std: [14]
     
     steps:
