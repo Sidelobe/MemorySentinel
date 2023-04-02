@@ -19,16 +19,18 @@
     #endif
 #endif
 
-static void handleTransgressionException(const char* optionalMsg) noexcept(false)
+static bool handleTransgressionException() noexcept(false)
 {
 #ifdef SLB_EXCEPTIONS_DISABLED
     assert(false && "[Exceptions disabled]");
 #else
     throw std::bad_alloc();
 #endif
+    return false; // never reached
 }
 
-static bool handleTransgression(const char* optionalMsg, std::size_t size, std::function<void(const char*)> exceptionHandler)
+template<class ExceptionHandler>
+static bool handleTransgression(const char* optionalMsg, std::size_t size, ExceptionHandler exceptionHandler)
 {
     assert(MemorySentinel::getInstance().isArmed());
     
@@ -45,8 +47,7 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, std::
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
-            exceptionHandler(optionalMsg);
-            return false; // never reached
+            return exceptionHandler();
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
             if (size !=0) {
@@ -74,11 +75,11 @@ static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(fal
     return retValue;
 }
 
-static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const& nt) noexcept
+static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
-    auto retValue = handleTransgression(msg, size, [](const char*){ return false; }); // simply return false in case an exception occurs
+    auto retValue = handleTransgression(msg, size, [](){ return false; }); // simply return false in case an exception occurs
     isHijackActive = true;
     return retValue;
 }

@@ -64,7 +64,7 @@ private:
 class ScopedMemorySentinel
 {
 public:
-    ScopedMemorySentinel(int allocationQuotaBytes = 0)
+    explicit ScopedMemorySentinel(int allocationQuotaBytes = 0)
     {
         MemorySentinel::setAllocationQuota(allocationQuotaBytes);
         if (allocationQuotaBytes > 0) {
@@ -87,4 +87,9 @@ public:
             assert(false && "MemorySentinel was triggered!");
         }
     }
+
+    ScopedMemorySentinel(const ScopedMemorySentinel&) = delete;                   ///< Copy ctor
+    ScopedMemorySentinel& operator= (const ScopedMemorySentinel&) = delete;       ///< Copy assignment operator
+    ScopedMemorySentinel(ScopedMemorySentinel&&) noexcept = delete;               ///< Move ctor
+    ScopedMemorySentinel& operator= (ScopedMemorySentinel&&) noexcept = delete;   ///< Move assignment operator
 };

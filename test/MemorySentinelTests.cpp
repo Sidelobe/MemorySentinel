@@ -35,7 +35,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     MemorySentinel& sentinel = MemorySentinel::getInstance();
     
     SECTION("SILENT") {
-        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
         sentinel.setArmed(false);
         REQUIRE_FALSE(sentinel.isArmed());
         std::vector<float>* heapObject = allocWithNew();
@@ -62,7 +62,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     }
     
     SECTION("LOG") {
-        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
         std::vector<float>* heapObject = allocWithNew();
         sentinel.setArmed(true);
         REQUIRE(sentinel.isArmed());
@@ -75,7 +75,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     
 #ifndef SLB_EXCEPTIONS_DISABLED
     SECTION("THROW_EXCEPTION - new/delete") {
-        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
         sentinel.setArmed(true);
         REQUIRE_THROWS(allocWithNew());
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
