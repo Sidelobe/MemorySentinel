@@ -8,7 +8,7 @@
 
 
 ![](https://img.shields.io/github/license/Sidelobe/Hyperbuffer)
-![](https://img.shields.io/badge/C++14-header--only-blue.svg?style=flat&logo=c%2B%2B)
+![](https://img.shields.io/badge/C++14-blue.svg?style=flat&logo=c%2B%2B)
 ![](https://img.shields.io/badge/dependencies-STL_only-blue)
 
 The `MemorySentinel` hijacks the all the system's variants of `new` & `delete` as well `malloc` & `free`. When unarmed, it quietly monitors the memory allocation landscape without intervening (quiet infiltration). When armed, and as soon as a "transgression" is detected, the `MemorySentinel` will become active, and either:

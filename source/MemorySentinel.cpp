@@ -220,7 +220,7 @@ void operator delete(void* ptr) noexcept
     std::free(ptr);
 }
 
-// MARK: - delete
+// MARK: - delete[]
 void operator delete[](void* ptr) noexcept
 {
     if (isHijackActive) {

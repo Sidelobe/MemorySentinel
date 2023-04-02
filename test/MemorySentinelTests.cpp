@@ -34,53 +34,113 @@ static decltype(auto) allocWithMalloc()
 {
     return std::malloc(32*sizeof(float));
 }
+static decltype(auto) allocWithCalloc()
+{
+    return std::calloc(32, sizeof(float));
+}
+static decltype(auto) allocWithRealloc()
+{
+    return std::realloc(nullptr, 32*sizeof(float));
+}
 
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {
     MemorySentinel& sentinel = MemorySentinel::getInstance();
     
-    sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
-    sentinel.setArmed(false);
-    REQUIRE_FALSE(sentinel.isArmed());
-    std::vector<float>* heapObject = allocWithNew();
-    REQUIRE(heapObject != nullptr);
-    REQUIRE_FALSE(sentinel.hasTransgressionOccured());
-    sentinel.clearTransgressions();
-    delete heapObject; // clean up
+    SECTION("SILENT") {
+        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+        sentinel.setArmed(false);
+        REQUIRE_FALSE(sentinel.isArmed());
+        std::vector<float>* heapObject = allocWithNew();
+        REQUIRE(heapObject != nullptr);
+        REQUIRE_FALSE(sentinel.hasTransgressionOccured());
+        sentinel.clearTransgressions();
+        delete heapObject; // clean up
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapObject = allocWithNew();
+        REQUIRE(heapObject != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        delete heapObject; // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        float* heapArray = allocWithNewArray();
+        REQUIRE(heapArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        delete[] heapArray; // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    }
     
-    sentinel.setArmed(true);
-    REQUIRE(sentinel.isArmed());
-    heapObject = allocWithNew();
-    REQUIRE(heapObject != nullptr);
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    delete heapObject; // clean up
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    SECTION("LOG") {
+        sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
+        std::vector<float>* heapObject = allocWithNew();
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapObject = allocWithNew();
+        REQUIRE(heapObject != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        delete heapObject; // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    }
     
 #ifndef SLB_EXCEPTIONS_DISABLED
-    sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
-    sentinel.setArmed(true);
-    REQUIRE_THROWS(allocWithNew());
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    // clean-up not necessary, since allocation was intercepted by exception
-    
-    sentinel.setArmed(true);
-    REQUIRE_THROWS(allocWithNewArray());
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
-    // clean-up not necessary, since allocation was intercepted by exception
-    
+    SECTION("THROW_EXCEPTION") {
+            sentinel.setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+            sentinel.setArmed(true);
+            REQUIRE_THROWS(allocWithNew());
+            REQUIRE(sentinel.getAndClearTransgressionsOccured());
+            // clean-up not necessary, since allocation was intercepted by exception
+            
+            sentinel.setArmed(true);
+            REQUIRE_THROWS(allocWithNewArray());
+            REQUIRE(sentinel.getAndClearTransgressionsOccured());
+            // clean-up not necessary, since allocation was intercepted by exception
+            
     #if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
-        sentinel.setArmed(true);
-        REQUIRE_THROWS(allocWithMalloc());
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        // clean-up not necessary, since allocation was intercepted by exception
-        
-        sentinel.setArmed(false);
-        auto m = allocWithMalloc();
-        sentinel.setArmed(true);
-        REQUIRE_THROWS(free(m));
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        if (m) free(m);
-    #endif
+            SECTION("malloc") {
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(allocWithMalloc());
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                // clean-up not necessary, since allocation was intercepted by exception
+                
+                sentinel.setArmed(false);
+                auto m = allocWithMalloc();
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(free(m));
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                if (m) free(m);
+            }
+            SECTION("calloc") {
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(allocWithCalloc());
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                // clean-up not necessary, since allocation was intercepted by exception
+                
+                sentinel.setArmed(false);
+                auto m = allocWithCalloc();
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(free(m));
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                if (m) free(m);
+            }
+            SECTION("realloc") {
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(allocWithRealloc());
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                // clean-up not necessary, since allocation was intercepted by exception
+                
+                sentinel.setArmed(false);
+                auto m = allocWithRealloc();
+                sentinel.setArmed(true);
+                REQUIRE_THROWS(free(m));
+                REQUIRE(sentinel.getAndClearTransgressionsOccured());
+                if (m) free(m);
+            }
+        #endif
+    }
 #endif
     
     sentinel.setArmed(false);
