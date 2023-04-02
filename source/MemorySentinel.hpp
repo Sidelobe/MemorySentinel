@@ -48,12 +48,7 @@ public:
     bool hasTransgressionOccured() const { return m_transgressionOccured.load(); }
     
     /** NOTE: this clear the transgression upon call */
-    bool getAndClearTransgressionsOccured() noexcept
-    {
-        bool result = m_transgressionOccured.load();
-        clearTransgressions();
-        return result;
-    }
+    bool getAndClearTransgressionsOccured() noexcept;
 
 private:
     MemorySentinel() = default; // Singleton = private ctor

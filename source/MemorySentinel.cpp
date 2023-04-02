@@ -19,7 +19,7 @@
     #endif
 #endif
 
-static inline void handleTransgression(const char* optionalMsg, std::size_t size = 0)
+static void handleTransgression(const char* optionalMsg, std::size_t size = 0)
 {
     if (MemorySentinel::getInstance().isArmed() == false) {
         return;
@@ -61,7 +61,7 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
 static bool isHijackActive = false;
 
-void hijack(const char* msg, std::size_t size = 0) noexcept(false)
+static void hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
@@ -69,10 +69,12 @@ void hijack(const char* msg, std::size_t size = 0) noexcept(false)
     isHijackActive = true;
 }
 
-void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+static void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
 {
     hijack(msg, size);
 }
+
+
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - Hijack malloc/free
@@ -101,7 +103,7 @@ static void initMallocHijack()
     builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
     builtinFree = (void (*)(void*)) dlsym(RTLD_NEXT, "free");
 #endif
-    
+
     if (!(builtinMalloc && builtinCalloc && builtinRealloc && builtinFree)) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
@@ -230,6 +232,7 @@ void operator delete[](void* ptr) noexcept
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - MemorySentinel
+
 // initialization (static non-const must be initialized out out line
 std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
 std::atomic<int> MemorySentinel::m_allocationQuota(0);
@@ -244,4 +247,11 @@ void MemorySentinel::setArmed(bool value)
 {
     m_allocationForbidden.store(value);
     isHijackActive = value;
+}
+
+bool MemorySentinel::getAndClearTransgressionsOccured() noexcept
+{
+    bool result = m_transgressionOccured.load();
+    clearTransgressions();
+    return result;
 }
