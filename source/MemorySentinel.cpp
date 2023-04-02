@@ -19,18 +19,27 @@
     #endif
 #endif
 
-static inline void handleTransgression(const char* optionalMsg, std::size_t size = 0)
+static bool handleTransgressionException() noexcept(false)
 {
-    if (MemorySentinel::getInstance().isArmed() == false) {
-        return;
-    }
+#ifdef SLB_EXCEPTIONS_DISABLED
+    assert(false && "[Exceptions disabled]");
+#else
+    throw std::bad_alloc();
+#endif
+    return false; // never reached
+}
+
+template<class ExceptionHandler>
+static bool handleTransgression(const char* optionalMsg, std::size_t size, ExceptionHandler exceptionHandler)
+{
+    assert(MemorySentinel::getInstance().isArmed());
     
-    int availableQuota = MemorySentinel::getInstance().getRemainingAllocationQuota();
+    int availableQuota = MemorySentinel::getRemainingAllocationQuota();
     if (availableQuota > 0 && size <= availableQuota) {
-        MemorySentinel::getInstance().setAllocationQuota(availableQuota - static_cast<int>(size));
+        MemorySentinel::setAllocationQuota(availableQuota - static_cast<int>(size));
         printf("[MemorySentinel]: permitted allocation in %s - %zu Bytes quota remaining\n",
-               optionalMsg, static_cast<std::size_t>(MemorySentinel::getInstance().getRemainingAllocationQuota()));
-        return; // this allocation was allowed
+               optionalMsg, static_cast<std::size_t>(MemorySentinel::getRemainingAllocationQuota()));
+        return true; // this allocation was allowed
     }
 
     MemorySentinel::getInstance().registerTransgression();
@@ -38,11 +47,7 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
-        #ifdef EXCEPTIONS_DISABLED
-            assert(false && "[Exceptions disabled]");
-        #else
-            throw std::bad_alloc();
-        #endif
+            return exceptionHandler();
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
             if (size !=0) {
@@ -50,10 +55,10 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
             } else {
                 printf("[MemorySentinel]: !!Transgression detected!! %s \n", optionalMsg);
             }
-            break;
+            return false;
         }
         case MemorySentinel::TransgressionBehaviour::SILENT: {
-            break;
+            return false;
         }
     }
 }
@@ -61,18 +66,25 @@ static inline void handleTransgression(const char* optionalMsg, std::size_t size
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
 static bool isHijackActive = false;
 
-void hijack(const char* msg, std::size_t size = 0) noexcept(false)
+static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
-    handleTransgression(msg, size);
+    auto retValue = handleTransgression(msg, size, handleTransgressionException);
     isHijackActive = true;
+    return retValue;
 }
 
-void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
 {
-    hijack(msg, size);
+    // Disabling 'hijack' while running 'trangression handler'
+    isHijackActive = false;
+    auto retValue = handleTransgression(msg, size, [](){ return false; }); // simply return false in case an exception occurs
+    isHijackActive = true;
+    return retValue;
 }
+
+
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - Hijack malloc/free
@@ -101,7 +113,7 @@ static void initMallocHijack()
     builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
     builtinFree = (void (*)(void*)) dlsym(RTLD_NEXT, "free");
 #endif
-    
+
     if (!(builtinMalloc && builtinCalloc && builtinRealloc && builtinFree)) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
@@ -192,8 +204,11 @@ void* operator new[](std::size_t size) noexcept(false)
 void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (isHijackActive) {
-        hijack("allocation with new (nothrow)", size, nt);
-        return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        if (hijack("allocation with new (nothrow)", size, nt)) {
+            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        } else {
+            return nullptr; // convention
+        }
     }
     return std::malloc(size);
 }
@@ -202,8 +217,11 @@ void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (isHijackActive) {
-        hijack("allocation with new[] (nothrow)", size, nt);
-        return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        if (hijack("allocation with new[] (nothrow)", size, nt)) {
+            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        } else {
+            return nullptr; // convention
+        }
     }
     return std::malloc(size);
 }
@@ -218,7 +236,7 @@ void operator delete(void* ptr) noexcept
     std::free(ptr);
 }
 
-// MARK: - delete
+// MARK: - delete[]
 void operator delete[](void* ptr) noexcept
 {
     if (isHijackActive) {
@@ -230,6 +248,7 @@ void operator delete[](void* ptr) noexcept
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - MemorySentinel
+
 // initialization (static non-const must be initialized out out line
 std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
 std::atomic<int> MemorySentinel::m_allocationQuota(0);
@@ -244,4 +263,11 @@ void MemorySentinel::setArmed(bool value)
 {
     m_allocationForbidden.store(value);
     isHijackActive = value;
+}
+
+bool MemorySentinel::getAndClearTransgressionsOccured() noexcept
+{
+    bool result = m_transgressionOccured.load();
+    clearTransgressions();
+    return result;
 }
