@@ -19,18 +19,25 @@
     #endif
 #endif
 
-static void handleTransgression(const char* optionalMsg, std::size_t size = 0)
+static void handleTransgressionException(const char* optionalMsg) noexcept(false)
 {
-    if (MemorySentinel::getInstance().isArmed() == false) {
-        return;
-    }
+#ifdef SLB_EXCEPTIONS_DISABLED
+    assert(false && "[Exceptions disabled]");
+#else
+    throw std::bad_alloc();
+#endif
+}
+
+static bool handleTransgression(const char* optionalMsg, std::size_t size, std::function<void(const char*)> exceptionHandler)
+{
+    assert(MemorySentinel::getInstance().isArmed());
     
     int availableQuota = MemorySentinel::getRemainingAllocationQuota();
     if (availableQuota > 0 && size <= availableQuota) {
         MemorySentinel::setAllocationQuota(availableQuota - static_cast<int>(size));
         printf("[MemorySentinel]: permitted allocation in %s - %zu Bytes quota remaining\n",
                optionalMsg, static_cast<std::size_t>(MemorySentinel::getRemainingAllocationQuota()));
-        return; // this allocation was allowed
+        return true; // this allocation was allowed
     }
 
     MemorySentinel::getInstance().registerTransgression();
@@ -38,11 +45,8 @@ static void handleTransgression(const char* optionalMsg, std::size_t size = 0)
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
-        #ifdef SLB_EXCEPTIONS_DISABLED
-            assert(false && "[Exceptions disabled]");
-        #else
-            throw std::bad_alloc();
-        #endif
+            exceptionHandler(optionalMsg);
+            return false; // never reached
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
             if (size !=0) {
@@ -50,10 +54,10 @@ static void handleTransgression(const char* optionalMsg, std::size_t size = 0)
             } else {
                 printf("[MemorySentinel]: !!Transgression detected!! %s \n", optionalMsg);
             }
-            break;
+            return false;
         }
         case MemorySentinel::TransgressionBehaviour::SILENT: {
-            break;
+            return false;
         }
     }
 }
@@ -61,17 +65,22 @@ static void handleTransgression(const char* optionalMsg, std::size_t size = 0)
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
 static bool isHijackActive = false;
 
-static void hijack(const char* msg, std::size_t size = 0) noexcept(false)
+static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
-    handleTransgression(msg, size);
+    auto retValue = handleTransgression(msg, size, handleTransgressionException);
     isHijackActive = true;
+    return retValue;
 }
 
-static void hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const& nt) noexcept
 {
-    hijack(msg, size);
+    // Disabling 'hijack' while running 'trangression handler'
+    isHijackActive = false;
+    auto retValue = handleTransgression(msg, size, [](const char*){ return false; }); // simply return false in case an exception occurs
+    isHijackActive = true;
+    return retValue;
 }
 
 
@@ -194,8 +203,11 @@ void* operator new[](std::size_t size) noexcept(false)
 void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (isHijackActive) {
-        hijack("allocation with new (nothrow)", size, nt);
-        return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        if (hijack("allocation with new (nothrow)", size, nt)) {
+            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        } else {
+            return nullptr; // convention
+        }
     }
     return std::malloc(size);
 }
@@ -204,8 +216,11 @@ void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
 void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 {
     if (isHijackActive) {
-        hijack("allocation with new[] (nothrow)", size, nt);
-        return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        if (hijack("allocation with new[] (nothrow)", size, nt)) {
+            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+        } else {
+            return nullptr; // convention
+        }
     }
     return std::malloc(size);
 }
