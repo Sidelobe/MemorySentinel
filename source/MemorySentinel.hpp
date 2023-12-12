@@ -16,7 +16,7 @@
 #define __has_feature(x) 0
 #endif
 #if !__has_feature(cxx_exceptions) && !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)
-  #define EXCEPTIONS_DISABLED
+  #define SLB_EXCEPTIONS_DISABLED 1
 #endif
 
 /**
@@ -46,15 +46,10 @@ public:
 
     void registerTransgression() { m_transgressionOccured.store(true); }
     void clearTransgressions() { m_transgressionOccured.exchange(false); }
-    bool hasTransgressionOccured() { return m_transgressionOccured.load(); }
+    bool hasTransgressionOccured() const { return m_transgressionOccured.load(); }
     
     /** NOTE: this clear the transgression upon call */
-    bool getAndClearTransgressionsOccured() noexcept
-    {
-        bool result = m_transgressionOccured.load();
-        clearTransgressions();
-        return result;
-    }
+    bool getAndClearTransgressionsOccured() noexcept;
 
 private:
     MemorySentinel() = default; // Singleton = private ctor
@@ -70,7 +65,7 @@ private:
 class ScopedMemorySentinel
 {
 public:
-    ScopedMemorySentinel(int allocationQuotaBytes = 0)
+    explicit ScopedMemorySentinel(int allocationQuotaBytes = 0)
     {
         MemorySentinel::setAllocationQuota(allocationQuotaBytes);
         if (allocationQuotaBytes > 0) {
@@ -88,9 +83,14 @@ public:
         auto& sentinel = MemorySentinel::getInstance();
         sentinel.setArmed(false);
         if (sentinel.getAndClearTransgressionsOccured() &&
-            sentinel.getTransgressionBehaviour() != MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION) {
+            MemorySentinel::getTransgressionBehaviour() != MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION) {
             
             assert(false && "MemorySentinel was triggered!");
         }
     }
+
+    ScopedMemorySentinel(const ScopedMemorySentinel&) = delete;                   ///< Copy ctor
+    ScopedMemorySentinel& operator= (const ScopedMemorySentinel&) = delete;       ///< Copy assignment operator
+    ScopedMemorySentinel(ScopedMemorySentinel&&) noexcept = delete;               ///< Move ctor
+    ScopedMemorySentinel& operator= (ScopedMemorySentinel&&) noexcept = delete;   ///< Move assignment operator
 };
