@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-11]
+        os: [macos-latest]
         cxx:
           - clang++
         build_type: [Debug]
@@ -32,6 +32,7 @@ jobs:
         cd build
         cmake -DCMAKE_CXX_STANDARD=${{matrix.std}} \
               -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+              --target MemorySentinelTest \
               ../..
         
     - name: Build & Run Tests
