@@ -1,4 +1,4 @@
-name: Build & Test HyperBuffer
+name: Build & Test
 on:
   push:
     branches:
