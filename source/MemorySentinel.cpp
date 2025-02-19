@@ -62,6 +62,8 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, Excep
             return false;
         }
     }
+    
+    return true;
 }
 
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
