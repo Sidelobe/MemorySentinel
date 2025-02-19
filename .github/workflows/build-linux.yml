@@ -1,11 +1,6 @@
 name: Sidelobe Build Matrix Linux
 on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_call:
 jobs:
   build:
     name: Linux, ${{matrix.cxx}}, C++${{matrix.std}}, ${{matrix.build_type}}

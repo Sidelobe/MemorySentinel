@@ -1,11 +1,6 @@
 name: Sidelobe Build Matrix Windows
 on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_call:
 jobs:
   build:
     name: ${{matrix.os}}, MSVC, C++${{matrix.std}}, ${{matrix.build_type}}, ${{matrix.platform}}
