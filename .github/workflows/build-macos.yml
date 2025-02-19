@@ -26,8 +26,7 @@ jobs:
         mkdir -p build
         cd build
         cmake -DCMAKE_CXX_STANDARD=${{matrix.std}} \
-              -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-              --target MemorySentinelTest \
+              -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
               ../..
         
     - name: Build & Run Tests
@@ -35,5 +34,5 @@ jobs:
         CTEST_OUTPUT_ON_FAILURE: 1
       working-directory: deploy/build
       run: |
-        cmake --build . --parallel 2
+        cmake --build . --parallel 2 --target MemorySentinelTest
         ctest -C ${{ matrix.build_type }} -L MemorySentinelTest -j 2
