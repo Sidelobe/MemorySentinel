@@ -32,6 +32,9 @@ static decltype(auto) allocWithRealloc()    { return std::realloc(nullptr, 32*si
 static decltype(auto) allocWithNewNoExcept()      noexcept { return operator new(sizeof(std::vector<float>(32)), std::nothrow); }
 static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new[](sizeof(float[32]), std::nothrow); }
 
+// Turn off clang optimizations for these functions
+#pragma clang optimize off
+
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
 {
@@ -89,6 +92,8 @@ static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     sentinel.setArmed(false);
 }
+
+#pragma clang optimize on
 
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {
