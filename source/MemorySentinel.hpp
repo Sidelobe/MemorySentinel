@@ -3,7 +3,7 @@
 //  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │
 //  ╩ ╩└─┘┴ ┴└─┘┴└─ ┴   ╚═╝└─┘┘└┘ ┴ ┴┘└┘└─┘┴─┘
 //
-//  © 2023 Lorenz Bucher - all rights reserved
+//  © 2025 Lorenz Bucher - all rights reserved
 //  https://github.com/Sidelobe/MemorySentinel
 
 #pragma once
