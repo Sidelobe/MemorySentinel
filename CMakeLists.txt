@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.20)
 
 #  ╔╦╗┌─┐┌┬┐┌─┐┬─┐┬ ┬  ╔═╗┌─┐┌┐┌┌┬┐┬┌┐┌┌─┐┬  
 #  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │  
@@ -48,6 +48,8 @@ if (CODE_COVERAGE)
 endif()
 
 target_link_libraries(${TEST_NAME} ${LIB_NAME})
+
+# Link to DL Libs
 if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
     target_link_libraries(${TEST_NAME} dl)
 endif()
@@ -58,7 +60,8 @@ if (POLICY CMP0110)
 endif()
 
 ## ENABLE THE USE OF CTEST 
-include("test/external-utils/catch2/ParseAndAddCatchTests.cmake")
+include("test/external-utils/catch2/Catch.cmake")
+
 #include(CTest) # this will generate lots of additional targets
 enable_testing()
-ParseAndAddCatchTests(${TEST_NAME})
+catch_discover_tests(${TEST_NAME})

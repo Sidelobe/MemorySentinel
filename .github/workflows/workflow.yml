@@ -1,0 +1,25 @@
+name: Build & Test
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron:  '0 3 1 * *' # At 3:00am on the 1st
+  workflow_dispatch:
+    
+jobs: 
+  call-build-linux:
+    uses: ./.github/workflows/build-linux.yml
+  call-build-macos:
+    if: ${{ always() }}
+    uses: ./.github/workflows/build-macos.yml
+  call-build-windows:
+    if: ${{ always() }}
+    uses: ./.github/workflows/build-windows.yml
+  call-build-sonarqube:
+    if: ${{ always() }}
+    uses: ./.github/workflows/build-sonarqube.yml
+    secrets: inherit

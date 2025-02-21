@@ -3,7 +3,7 @@
 //  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │
 //  ╩ ╩└─┘┴ ┴└─┘┴└─ ┴   ╚═╝└─┘┘└┘ ┴ ┴┘└┘└─┘┴─┘
 //
-//  © 2023 Lorenz Bucher - all rights reserved
+//  © 2025 Lorenz Bucher - all rights reserved
 //  https://github.com/Sidelobe/MemorySentinel
 
 #include <catch2/catch.hpp>
@@ -23,6 +23,7 @@
     #define REQUIRE_THROWS_AS(...)
 #endif
 
+
 static decltype(auto) allocWithNew()        { return new std::vector<float>(32); }
 static decltype(auto) allocWithNewArray()   { return new float[32]; }
 static decltype(auto) allocWithMalloc()     { return std::malloc(32*sizeof(float)); }
@@ -31,9 +32,68 @@ static decltype(auto) allocWithRealloc()    { return std::realloc(nullptr, 32*si
 static decltype(auto) allocWithNewNoExcept()      noexcept { return operator new(sizeof(std::vector<float>(32)), std::nothrow); }
 static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new[](sizeof(float[32]), std::nothrow); }
 
+template<typename T>
+static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
+{
+    sentinel.setArmed(true);
+    
+    volatile float* a = nullptr; // dummy to avoid optimization
+    REQUIRE_THROWS(a = (float*) allocFunc());
+    
+    sentinel.setArmed(false);
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    // freeing not necessary, since allocation was intercepted by exception
+}
+
+template<typename T, typename U>
+static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U& freeFunc)
+{
+    // allocate with unarmed sentinel
+    sentinel.setArmed(false);
+    volatile auto m = allocFunc();
+    sentinel.setArmed(true);
+    
+    freeFunc(m); // always noexcept
+    
+    // freeing took place, no exception was thrown
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    sentinel.setArmed(false);
+}
+
+template<typename T>
+static void testDelete(MemorySentinel& sentinel, T& allocFunc)
+{
+    // allocate with unarmed sentinel
+    sentinel.setArmed(false);
+    auto m = allocFunc();
+    sentinel.setArmed(true);
+    
+    operator delete(m);  // always noexcept
+    
+    // deletion took place, no exception was thrown
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    sentinel.setArmed(false);
+}
+
+template<typename T>
+static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
+{
+    // allocate with unarmed sentinel
+    sentinel.setArmed(false);
+    auto m = allocFunc();
+    sentinel.setArmed(true);
+    
+    operator delete[](m);  // always noexcept
+    
+    // deletion took place, no exception was thrown
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
+    sentinel.setArmed(false);
+}
+
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {
     MemorySentinel& sentinel = MemorySentinel::getInstance();
+    sentinel.getAndClearTransgressionsOccured();
     
     SECTION("SILENT") {
         MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
@@ -60,6 +120,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         delete[] heapArray; // clean up
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
     }
     
     SECTION("LOG") {
@@ -72,80 +133,59 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         delete heapObject; // clean up
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
     }
     
 #ifndef SLB_EXCEPTIONS_DISABLED
     SECTION("THROW_EXCEPTION - new/delete") {
         MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
-        sentinel.setArmed(true);
-        REQUIRE_THROWS(allocWithNew());
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        // clean-up not necessary, since allocation was intercepted by exception
         
-        sentinel.setArmed(true);
-        REQUIRE_THROWS(allocWithNewArray());
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        // clean-up not necessary, since allocation was intercepted by exception
-        
+        testAllocation(sentinel, allocWithNew);
+        testAllocation(sentinel, allocWithNewArray);
+    
         sentinel.setArmed(true);
         void* p1;
-        REQUIRE_NOTHROW(p1 = allocWithNewNoExcept());
+        p1 = allocWithNewNoExcept();
         REQUIRE(p1 == nullptr);
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        // clean-up not necessary, since allocation was intercepted by exception
+        // freeing not necessary, since allocation was intercepted by exception
         
         sentinel.setArmed(true);
         void* p2;
-        REQUIRE_NOTHROW(p2 = allocWithNewArrayNoExcept());
-        //REQUIRE(p2 == nullptr);
+        p2 = allocWithNewArrayNoExcept();
+        REQUIRE(p2 == nullptr);
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        // clean-up not necessary, since allocation was intercepted by exception
+        // freeing not necessary, since allocation was intercepted by exception
+        
+        testDelete(sentinel, allocWithNew);
+        testDelete(sentinel, allocWithNewNoExcept);
+        
+        testDeleteArray(sentinel, allocWithNewArray);
+        testDeleteArray(sentinel, allocWithNewArrayNoExcept);
         
         sentinel.setArmed(false);
     }
     #if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
-            SECTION("malloc") {
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(allocWithMalloc());
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                // clean-up not necessary, since allocation was intercepted by exception
-                
-                sentinel.setArmed(false);
-                auto m = allocWithMalloc();
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(free(m));
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                if (m) free(m);
-            }
-            SECTION("calloc") {
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(allocWithCalloc());
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                // clean-up not necessary, since allocation was intercepted by exception
-                
-                sentinel.setArmed(false);
-                auto m = allocWithCalloc();
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(free(m));
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                if (m) free(m);
-            }
-            SECTION("realloc") {
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(allocWithRealloc());
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                // clean-up not necessary, since allocation was intercepted by exception
-                
-                sentinel.setArmed(false);
-                auto m = allocWithRealloc();
-                sentinel.setArmed(true);
-                REQUIRE_THROWS(free(m));
-                REQUIRE(sentinel.getAndClearTransgressionsOccured());
-                if (m) free(m);
-            }
-        #endif
-#endif
-    sentinel.setArmed(false);
+        SECTION("THROW_EXCEPTION - malloc/free") {
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+            testAllocation(sentinel, allocWithMalloc);
+            testFreeing(sentinel, allocWithMalloc, free);
+        }
+    
+        SECTION("THROW_EXCEPTION - calloc/free") {
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+            testAllocation(sentinel, allocWithCalloc);
+            testFreeing(sentinel, allocWithCalloc, free);
+        }
+    
+        SECTION("THROW_EXCEPTION - realloc/free") {
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+            testAllocation(sentinel, allocWithRealloc);
+            testFreeing(sentinel, allocWithRealloc, free);
+        }
+    #endif // (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
+    
+#endif // SLB_EXCEPTIONS_DISABLED
     
     // After tests, disarm Sentinel
     sentinel.clearTransgressions();
@@ -176,7 +216,7 @@ TEST_CASE("ScopedMemorySentinel Tests")
 
     std::vector<float>* heapObject;
     {
-        // this will throw a std::bad_alloc (allocating 1 byte too many)
+        // allocation size is just right
         ScopedMemorySentinel sentinel(bytesAllocatedFor32FloatVector);
         heapObject = allocWithNew();
     }
