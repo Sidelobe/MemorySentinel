@@ -143,14 +143,14 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     
         sentinel.setArmed(true);
         void* p1;
-        REQUIRE_NOTHROW(p1 = allocWithNewNoExcept());
+        p1 = allocWithNewNoExcept();
         REQUIRE(p1 == nullptr);
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         // freeing not necessary, since allocation was intercepted by exception
         
         sentinel.setArmed(true);
         void* p2;
-        REQUIRE_NOTHROW(p2 = allocWithNewArrayNoExcept());
+        p2 = allocWithNewArrayNoExcept();
         REQUIRE(p2 == nullptr);
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         // freeing not necessary, since allocation was intercepted by exception

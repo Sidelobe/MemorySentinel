@@ -78,11 +78,11 @@ static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(fal
     return retValue;
 }
 /** no-except variant */
-static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept(true)
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
-    auto retValue = handleTransgression(msg, size, [](){ return false; }); // simply return false in case an exception occurs
+    auto retValue = handleTransgression(msg, size, [](){ return false; }); // dummy transgression handler simply return false in case an exception occurs
     isHijackActive = true;
     return retValue;
 }
@@ -205,33 +205,27 @@ void* operator new[](std::size_t size) noexcept(false)
 }
 
 // MARK: - new noexcept
-void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
+void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
     if (isHijackActive) {
-        if (hijack("allocation with new (nothrow)", size, nt)) {
-            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
-        } else {
-            return nullptr; // convention
-        }
+        hijack("allocation with new (nothrow)", size, nt); // will always return false
+        return nullptr; // convention
     }
     return std::malloc(size);
 }
 
 // MARK: - new[] noexcept
-void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
+void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
     if (isHijackActive) {
-        if (hijack("allocation with new[] (nothrow)", size, nt)) {
-            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
-        } else {
-            return nullptr; // convention
-        }
+        hijack("allocation with new[] (nothrow)", size, nt); // will always return false
+        return nullptr; // convention
     }
     return std::malloc(size);
 }
 
 // MARK: - delete -- always noexcept
-void operator delete(void* ptr) noexcept
+void operator delete(void* ptr) noexcept(true)
 {
     if (isHijackActive) {
         std::nothrow_t nt; // force non-throwing overload with tag
@@ -243,7 +237,7 @@ void operator delete(void* ptr) noexcept
 }
 
 // MARK: - delete[]  -- always noexcept
-void operator delete[](void* ptr) noexcept
+void operator delete[](void* ptr) noexcept(true)
 {
     if (isHijackActive) {
         std::nothrow_t nt; // force non-throwing overload with tag
