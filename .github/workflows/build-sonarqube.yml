@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       BUILD_WRAPPER_OUT_DIR: '$GITHUB_WORKSPACE/deploy/build/bw-output' # Directory where build-wrapper output will be placed
-      cxx: g++-14
-      cc: gcc-14
+      cxx: g++-11
+      cc: gcc-11
     steps:
     - uses: actions/checkout@v4
       with:
