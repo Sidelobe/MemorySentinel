@@ -32,11 +32,12 @@ static decltype(auto) allocWithRealloc()    { return std::realloc(nullptr, 32*si
 static decltype(auto) allocWithNewNoExcept()      noexcept { return operator new(sizeof(std::vector<float>(32)), std::nothrow); }
 static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new[](sizeof(float[32]), std::nothrow); }
 
-static void testAllocation(MemorySentinel& sentinel, std::function<void*()>&& allocFunc)
+template<typename T>
+static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
 {
     sentinel.setArmed(true);
     
-    volatile float* a = 0; // dummy to avoid optimization
+    volatile float* a = nullptr; // dummy to avoid optimization
     REQUIRE_THROWS(a = (float*) allocFunc());
     
     sentinel.setArmed(false);

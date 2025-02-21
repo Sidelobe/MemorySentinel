@@ -20,7 +20,10 @@
     #endif
 #endif
 
-__attribute__((noreturn)) static void handleTransgressionException() noexcept(false)
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((noreturn)) 
+#endif
+static void handleTransgressionException() noexcept(false)
 {
 #ifdef SLB_EXCEPTIONS_DISABLED
     assert(false && "[Exceptions disabled]");
