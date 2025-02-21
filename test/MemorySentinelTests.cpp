@@ -38,12 +38,21 @@ static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
 {
+    sentinel.clearTransgressions();
     sentinel.setArmed(true);
     
     volatile float* a = nullptr; // dummy to avoid optimization
-    REQUIRE_THROWS(a = (float*) allocFunc());
     
+    // NOTE: Catch's REQUIRE_THROWS may allocate memory under certain circumstances, therefore we avoid it!
+    bool hasThrown = false;
+    try {
+        a = (float*) allocFunc();
+    } catch (const std::bad_alloc& e) {
+        hasThrown = true;
+    }
     sentinel.setArmed(false);
+    
+    REQUIRE(hasThrown);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
     // freeing not necessary, since allocation was intercepted by exception
 }
@@ -51,21 +60,23 @@ static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
 template<typename T, typename U>
 static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U& freeFunc)
 {
+    sentinel.clearTransgressions();
     // allocate with unarmed sentinel
     sentinel.setArmed(false);
     volatile auto m = allocFunc();
     sentinel.setArmed(true);
-    
+
     freeFunc(m); // always noexcept
-    
+
     // freeing took place, no exception was thrown
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
     sentinel.setArmed(false);
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
 }
 
 template<typename T>
 static void testDelete(MemorySentinel& sentinel, T& allocFunc)
 {
+    sentinel.clearTransgressions();
     // allocate with unarmed sentinel
     sentinel.setArmed(false);
     auto m = allocFunc();
@@ -74,13 +85,14 @@ static void testDelete(MemorySentinel& sentinel, T& allocFunc)
     operator delete(m);  // always noexcept
     
     // deletion took place, no exception was thrown
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
     sentinel.setArmed(false);
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
 }
 
 template<typename T>
 static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
 {
+    sentinel.clearTransgressions();
     // allocate with unarmed sentinel
     sentinel.setArmed(false);
     auto m = allocFunc();
@@ -89,8 +101,8 @@ static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
     operator delete[](m);  // always noexcept
     
     // deletion took place, no exception was thrown
-    REQUIRE(sentinel.getAndClearTransgressionsOccured());
     sentinel.setArmed(false);
+    REQUIRE(sentinel.getAndClearTransgressionsOccured());
 }
 
 #pragma clang optimize on
@@ -98,7 +110,7 @@ static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {
     MemorySentinel& sentinel = MemorySentinel::getInstance();
-    sentinel.getAndClearTransgressionsOccured();
+    sentinel.clearTransgressions();
     
     SECTION("SILENT") {
         MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
@@ -194,21 +206,33 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     
     // After tests, disarm Sentinel
     sentinel.clearTransgressions();
-}
 
-TEST_CASE("ScopedMemorySentinel Tests")
-{
-    {
+    
+    // MARK: - ScopedMemorySentinel Tests (put into same test case to avoid weird issues on macos/release)
+
+    SECTION("default behaviour") {
         ScopedMemorySentinel sentinel;
         // THIS WILL ASSERT (default behaviour)
         //std::vector<float>* heapObject = allocWithNew();
     }
-    {
-        ScopedMemorySentinel sentinel;
-        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
-        REQUIRE_THROWS_AS(allocWithNew(), std::bad_alloc);
+    
+    SECTION("throw on alloc") {
+        bool hasThrown = false;
+        {
+            ScopedMemorySentinel sentinel;
+            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+            
+            // NOTE: Catch's REQUIRE_THROWS may allocate memory under certain circumstances, therefore we avoid it!
+            try {
+                allocWithNew();
+            } catch (const std::bad_alloc& e) {
+                hasThrown = true;
+            }
+        }
+        REQUIRE(hasThrown);
     }
 
+    
     // Set allocation quota (allocWithNew allocates float vector size 32)
     // - std::vector data: 32*sizeof(float)
     // - std::vector overhead: 24 bytes (clang stl implementation)
@@ -220,20 +244,34 @@ TEST_CASE("ScopedMemorySentinel Tests")
 #endif 
 
     std::vector<float>* heapObject;
-    {
-        // allocation size is just right
-        ScopedMemorySentinel sentinel(bytesAllocatedFor32FloatVector);
+    SECTION("quota fits") {
+        {
+            // allocation size is just right
+            ScopedMemorySentinel sentinel(bytesAllocatedFor32FloatVector);
+            heapObject = allocWithNew();
+        }
+        delete heapObject; // clean up
+        
+        // this works because we're out of scope of the ScopedMemorySentinel
         heapObject = allocWithNew();
-    }
-    delete heapObject; // clean up
-
-    {
-        // this will throw a std::bad_alloc (allocating 1 byte too many)
-        ScopedMemorySentinel sentinel(bytesAllocatedFor32FloatVector-1);
-        REQUIRE_THROWS_AS(allocWithNew(), std::bad_alloc);
+        delete heapObject; // clean up
     }
     
-    // this works because we're out of scope of the ScopedMemorySentinel
-    heapObject = allocWithNew();
-    delete heapObject; // clean up
+    SECTION("quota does barely not fit") {
+        bool hasThrown = false;
+        {
+            // this will throw a std::bad_alloc (allocating 1 byte too many)
+            ScopedMemorySentinel sentinel(bytesAllocatedFor32FloatVector-1);
+            
+            // NOTE: Catch's REQUIRE_THROWS may allocate memory under certain circumstances, therefore we avoid it!
+            try {
+                allocWithNew();
+            } catch (const std::bad_alloc& e) {
+                hasThrown = true;
+            }
+        }
+        REQUIRE(hasThrown);
+        
+        // delete not necessary, since we never allocated
+    }
 }
