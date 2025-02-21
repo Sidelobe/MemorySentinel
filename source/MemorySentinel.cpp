@@ -19,7 +19,8 @@
         #include <malloc.h>
     #endif
 #endif
-static void handleTransgressionException() noexcept(false)
+
+__attribute__((noreturn)) static void handleTransgressionException() noexcept(false)
 {
 #ifdef SLB_EXCEPTIONS_DISABLED
     assert(false && "[Exceptions disabled]");

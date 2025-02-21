@@ -44,7 +44,8 @@ static void testAllocation(MemorySentinel& sentinel, std::function<void*()>&& al
     // freeing not necessary, since allocation was intercepted by exception
 }
 
-static void testFreeing(MemorySentinel& sentinel, std::function<void*()>&& allocFunc, std::function<void(void*)>&& freeFunc)
+template<typename T, typename U>
+static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U& freeFunc)
 {
     // allocate with unarmed sentinel
     sentinel.setArmed(false);
@@ -59,7 +60,7 @@ static void testFreeing(MemorySentinel& sentinel, std::function<void*()>&& alloc
 }
 
 template<typename T>
-static void testDelete(MemorySentinel& sentinel, T&& allocFunc)
+static void testDelete(MemorySentinel& sentinel, T& allocFunc)
 {
     // allocate with unarmed sentinel
     sentinel.setArmed(false);
