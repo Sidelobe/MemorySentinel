@@ -259,13 +259,13 @@ void operator delete[](void* ptr) noexcept(true)
 std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
 std::atomic<int> MemorySentinel::m_allocationQuota(0);
 
-MemorySentinel& MemorySentinel::getInstance()
+MemorySentinel& MemorySentinel::getInstance() noexcept
 {
     thread_local MemorySentinel instance;
     return instance;
 }
 
-void MemorySentinel::setArmed(bool value)
+void MemorySentinel::setArmed(bool value) noexcept
 {
     m_allocationForbidden.store(value);
     isHijackActive = value;

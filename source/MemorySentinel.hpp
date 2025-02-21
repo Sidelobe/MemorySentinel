@@ -33,10 +33,10 @@ public:
     };
 
     /** Returns a MemorySentinel for the current thread. */
-    static MemorySentinel& getInstance();
+    static MemorySentinel& getInstance() noexcept;
     
-    void setArmed(bool value);
-    bool isArmed() const { return m_allocationForbidden.load(); }
+    void setArmed(bool value) noexcept;
+    bool isArmed() const noexcept { return m_allocationForbidden.load(); }
 
     static void setTransgressionBehaviour(TransgressionBehaviour b) noexcept { m_transgressionBehaviour.store(b); }
     static TransgressionBehaviour getTransgressionBehaviour() noexcept { return m_transgressionBehaviour.load(); }
@@ -44,9 +44,9 @@ public:
     static void setAllocationQuota(int numBytes) noexcept { m_allocationQuota.store(numBytes); }
     static int getRemainingAllocationQuota() noexcept { return m_allocationQuota.load(); }
 
-    void registerTransgression() { m_transgressionOccured.store(true); }
-    void clearTransgressions() { m_transgressionOccured.exchange(false); }
-    bool hasTransgressionOccured() const { return m_transgressionOccured.load(); }
+    void registerTransgression() noexcept { m_transgressionOccured.store(true); }
+    void clearTransgressions() noexcept { m_transgressionOccured.exchange(false); }
+    bool hasTransgressionOccured() const noexcept { return m_transgressionOccured.load(); }
     
     /** NOTE: this clear the transgression upon call */
     bool getAndClearTransgressionsOccured() noexcept;
