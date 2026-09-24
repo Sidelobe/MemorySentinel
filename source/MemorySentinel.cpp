@@ -85,6 +85,12 @@ static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t c
     return retValue;
 }
 
+/** Deallocating a nullptr (free / delete / delete[]) is a no-op and must never count as a transgression */
+static inline bool isNoOpDealloc(void* ptr) noexcept
+{
+    return ptr == nullptr;
+}
+
 
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -159,6 +165,8 @@ void free(void* ptr)
     if (builtinFree == nullptr) {
         initMallocHijack();
     }
+    if (isNoOpDealloc(ptr)) { return; }
+
     if (isHijackActive) {
         hijack("deallocation with free");
     }
@@ -230,6 +238,8 @@ void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
 // MARK: - delete
 void operator delete(void* ptr) noexcept
 {
+    if (isNoOpDealloc(ptr)) { return; }
+
     if (isHijackActive) {
         hijack("deallocation with delete");
         return builtinFree(ptr); // free the memory with the 'un-hijacked' free.
@@ -240,6 +250,8 @@ void operator delete(void* ptr) noexcept
 // MARK: - delete[]
 void operator delete[](void* ptr) noexcept
 {
+    if (isNoOpDealloc(ptr)) { return; }
+
     if (isHijackActive) {
         hijack("deallocation with delete[]");
         return builtinFree(ptr); // free the memory with the 'un-hijacked' free.

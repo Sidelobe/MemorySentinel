@@ -151,6 +151,53 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     sentinel.clearTransgressions();
 }
 
+TEST_CASE("MemorySentinel Tests: deallocation of nullptr is not a transgression")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+
+    SECTION("SILENT") {
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+        sentinel.setArmed(true);
+
+        std::vector<float>* nullObject = nullptr;
+        delete nullObject;
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        float* nullArray = nullptr;
+        delete[] nullArray;
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        free(nullptr);
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        sentinel.setArmed(false);
+    }
+
+#ifndef SLB_EXCEPTIONS_DISABLED
+    SECTION("THROW_EXCEPTION") {
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+        sentinel.setArmed(true);
+
+        std::vector<float>* nullObject = nullptr;
+        REQUIRE_NOTHROW(delete nullObject);
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        float* nullArray = nullptr;
+        REQUIRE_NOTHROW(delete[] nullArray);
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        REQUIRE_NOTHROW(free(nullptr));
+        REQUIRE_FALSE(sentinel.getAndClearTransgressionsOccured());
+
+        sentinel.setArmed(false);
+    }
+#endif
+
+    sentinel.setArmed(false);
+    sentinel.clearTransgressions();
+}
+
 TEST_CASE("ScopedMemorySentinel Tests")
 {
     {
@@ -170,9 +217,9 @@ TEST_CASE("ScopedMemorySentinel Tests")
     int stdVectorOverhead = sizeof(std::vector<float>);
     int bytesAllocatedFor32FloatVector = 32*sizeof(float) + stdVectorOverhead;
 
-#if defined(_MSC_VER) && defined(_DEBUG) &&_ITERATOR_DEBUG_LEVEL > 1 // MSVC Debug results in additional 
+#if defined(_MSC_VER) && defined(_DEBUG) &&_ITERATOR_DEBUG_LEVEL > 1 // MSVC Debug results in additional
     bytesAllocatedFor32FloatVector += 16;
-#endif 
+#endif
 
     std::vector<float>* heapObject;
     {
