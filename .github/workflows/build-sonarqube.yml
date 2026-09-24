@@ -11,7 +11,7 @@ jobs:
       cxx: g++-11
       cc: gcc-11
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'true'
         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
