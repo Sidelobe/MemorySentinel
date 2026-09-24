@@ -1,11 +1,6 @@
 name: Sidelobe Build Matrix macos
 on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_call:
 jobs:
   build:
     name: ${{matrix.os}}, ${{matrix.cxx}}, C++${{matrix.std}}, ${{matrix.build_type}}
@@ -13,10 +8,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-11]
+        os: [macos-latest]
         cxx:
           - clang++
-        build_type: [Debug]
+        build_type: [Debug, Release]
         std: [14]
     
     steps:
@@ -39,5 +34,5 @@ jobs:
         CTEST_OUTPUT_ON_FAILURE: 1
       working-directory: deploy/build
       run: |
-        cmake --build . --parallel 2
+        cmake --build . --parallel 2 --target MemorySentinelTest
         ctest -C ${{ matrix.build_type }} -L MemorySentinelTest -j 2

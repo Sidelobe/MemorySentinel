@@ -3,7 +3,7 @@
 //  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │
 //  ╩ ╩└─┘┴ ┴└─┘┴└─ ┴   ╚═╝└─┘┘└┘ ┴ ┴┘└┘└─┘┴─┘
 //
-//  © 2023 Lorenz Bucher - all rights reserved
+//  © 2025 Lorenz Bucher - all rights reserved
 //  https://github.com/Sidelobe/MemorySentinel
 
 #include "MemorySentinel.hpp"
@@ -20,14 +20,16 @@
     #endif
 #endif
 
-static bool handleTransgressionException() noexcept(false)
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((noreturn)) 
+#endif
+static void handleTransgressionException() noexcept(false)
 {
 #ifdef SLB_EXCEPTIONS_DISABLED
     assert(false && "[Exceptions disabled]");
 #else
     throw std::bad_alloc();
 #endif
-    return false; // never reached
 }
 
 template<class ExceptionHandler>
@@ -48,7 +50,8 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, Excep
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
-            return exceptionHandler();
+            exceptionHandler();
+            return false;
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
             if (size !=0) {
@@ -62,11 +65,14 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, Excep
             return false;
         }
     }
+    
+    return false;
 }
 
 // Using pattern described here: https://stackoverflow.com/a/17850402/649700
 static bool isHijackActive = false;
 
+/** exception-throwing variant */
 static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
     // Disabling 'hijack' while running 'trangression handler'
@@ -75,12 +81,12 @@ static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(fal
     isHijackActive = true;
     return retValue;
 }
-
-static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept
+/** no-except variant */
+static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept(true)
 {
     // Disabling 'hijack' while running 'trangression handler'
     isHijackActive = false;
-    auto retValue = handleTransgression(msg, size, [](){ return false; }); // simply return false in case an exception occurs
+    auto retValue = handleTransgression(msg, size, [](){ return false; }); // dummy transgression handler simply return false in case an exception occurs
     isHijackActive = true;
     return retValue;
 }
@@ -168,7 +174,8 @@ void free(void* ptr)
     if (isNoOpDealloc(ptr)) { return; }
 
     if (isHijackActive) {
-        hijack("deallocation with free");
+        std::nothrow_t nt; // force non-throwing overload with tag
+        hijack("deallocation with free", 0, nt);
     }
     builtinFree(ptr);
 }
@@ -209,54 +216,52 @@ void* operator new[](std::size_t size) noexcept(false)
     return std::malloc(size);
 }
 
-// MARK: - new nothrow
-void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept
+// MARK: - new noexcept
+void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
     if (isHijackActive) {
-        if (hijack("allocation with new (nothrow)", size, nt)) {
-            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
-        } else {
-            return nullptr; // convention
-        }
+        hijack("allocation with new (nothrow)", size, nt); // will always return false
+        return nullptr; // convention
     }
     return std::malloc(size);
 }
 
-// MARK: - new[] nothrow
-void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept
+// MARK: - new[] noexcept
+void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
     if (isHijackActive) {
-        if (hijack("allocation with new[] (nothrow)", size, nt)) {
-            return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
-        } else {
-            return nullptr; // convention
-        }
+        hijack("allocation with new[] (nothrow)", size, nt); // will always return false
+        return nullptr; // convention
     }
     return std::malloc(size);
 }
 
-// MARK: - delete
-void operator delete(void* ptr) noexcept
+// MARK: - delete -- always noexcept
+void operator delete(void* ptr) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
     if (isHijackActive) {
-        hijack("deallocation with delete");
-        return builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+        std::nothrow_t nt; // force non-throwing overload with tag
+        hijack("deallocation with delete", 0, nt);
+        builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+    } else {
+        std::free(ptr);
     }
-    std::free(ptr);
 }
 
-// MARK: - delete[]
-void operator delete[](void* ptr) noexcept
+// MARK: - delete[]  -- always noexcept
+void operator delete[](void* ptr) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
     if (isHijackActive) {
-        hijack("deallocation with delete[]");
-        return builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+        std::nothrow_t nt; // force non-throwing overload with tag
+        hijack("deallocation with delete[]", 0, nt);
+        builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+    } else {
+        std::free(ptr);
     }
-    std::free(ptr);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -266,13 +271,13 @@ void operator delete[](void* ptr) noexcept
 std::atomic<MemorySentinel::TransgressionBehaviour> MemorySentinel::m_transgressionBehaviour(TransgressionBehaviour::LOG);
 std::atomic<int> MemorySentinel::m_allocationQuota(0);
 
-MemorySentinel& MemorySentinel::getInstance()
+MemorySentinel& MemorySentinel::getInstance() noexcept
 {
     thread_local MemorySentinel instance;
     return instance;
 }
 
-void MemorySentinel::setArmed(bool value)
+void MemorySentinel::setArmed(bool value) noexcept
 {
     m_allocationForbidden.store(value);
     isHijackActive = value;

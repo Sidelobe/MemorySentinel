@@ -4,7 +4,7 @@
  ╩ ╩└─┘┴ ┴└─┘┴└─ ┴   ╚═╝└─┘┘└┘ ┴ ┴┘└┘└─┘┴─┘                            
 ```
 
-### A utility to detect memory allocation and de-allocation in a given scope. Meant to be used for testing environments.
+### A utility to detect memory allocation and de-allocation in a given scope. Meant to be used for testing environments, not production deployments.
 
 
 ![](https://img.shields.io/github/license/Sidelobe/Hyperbuffer)
@@ -13,7 +13,7 @@
 
 The `MemorySentinel` hijacks the all the system's variants of `new` & `delete` as well `malloc` & `free`. When unarmed, it quietly monitors the memory allocation landscape without intervening (quiet infiltration). When armed, and as soon as a "transgression" is detected, the `MemorySentinel` will become active, and either:
 
-* Throw a ` std::bad_alloc`
+* Throw a ` std::bad_alloc` (only for allocation funtions)
 * Log to console (while still allocating normally)
 * Register the event silently (status can be queried)
 
@@ -60,18 +60,13 @@ sentinel.clearTransgressions();
 ### Status
 
 ![](https://img.shields.io/badge/branch-main-blue)
-[![Sidelobe Build Matrix Linux](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-linux.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-linux.yml)
-[![Sidelobe Build Matrix macos](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-macos.yml)
-[![Sidelobe Build Matrix Windows](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml/badge.svg?branch=main)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/build-windows.yml)
+[![Build & Test](https://github.com/Sidelobe/MemorySentinel/actions/workflows/workflow.yml/badge.svg)](https://github.com/Sidelobe/MemorySentinel/actions/workflows/workflow.yml)
 
-MemorySentinel
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=bugs)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
-[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
-[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=security_rating)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=sqale_index)](https://sonarcloud.io/dashboard?id=Sidelobe_MemorySentinel)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Sidelobe_MemorySentinel&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=Sidelobe_MemorySentinel)	
+
+
 
