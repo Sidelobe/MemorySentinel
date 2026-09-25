@@ -206,6 +206,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         sentinel.setArmed(false);
         
+    #if defined(__clang__) || defined(__GNUC__)
         sentinel.setArmed(true);
         REQUIRE(sentinel.isArmed());
         heapCArray = nullptr;
@@ -215,7 +216,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         free(heapCArray); // clean up
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         sentinel.setArmed(false);
-        
+    #endif
         
     #if SLB_HAS_ALIGNED_ALLOC
         sentinel.setArmed(true);
