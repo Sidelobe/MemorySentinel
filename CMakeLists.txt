@@ -90,4 +90,4 @@ include("test/external-utils/catch2/Catch.cmake")
 
 #include(CTest) # this will generate lots of additional targets
 enable_testing()
-catch_discover_tests(${TEST_NAME})
+catch_discover_tests(${TEST_NAME} PROPERTIES LABELS ${TEST_NAME})
