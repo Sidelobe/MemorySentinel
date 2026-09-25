@@ -35,9 +35,6 @@ static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new
 // Sink for allocations whose result is not used otherwise - this prevents the compiler from optimizing away the allocation
 static volatile void* allocSink = nullptr;
 
-// Turn off clang optimizations for these functions
-#pragma clang optimize off
-
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
 {
@@ -107,8 +104,6 @@ static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
     sentinel.setArmed(false);
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
 }
-
-#pragma clang optimize on
 
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {

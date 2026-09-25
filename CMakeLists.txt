@@ -91,3 +91,14 @@ include("test/external-utils/catch2/Catch.cmake")
 #include(CTest) # this will generate lots of additional targets
 enable_testing()
 catch_discover_tests(${TEST_NAME} PROPERTIES LABELS ${TEST_NAME} TIMEOUT 300)
+
+
+# These tests rely on allocations actually being performed. These compile options should avoid the compiler 
+# optimizing the allocations away.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  target_compile_options(${TEST_NAME} PRIVATE -fno-allocation-dce
+          -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_options(${TEST_NAME} PRIVATE -fno-builtin-operator-new -fno-builtin-operator-delete
+          -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free)
+endif()
