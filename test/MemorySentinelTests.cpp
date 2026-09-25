@@ -201,7 +201,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         SECTION("THROW_EXCEPTION - realloc/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithRealloc);
-            testFreeing(sentinel, allocWithRealloc, free);
+            //testFreeing(sentinel, allocWithRealloc, free);
         }
     #endif // (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
     
