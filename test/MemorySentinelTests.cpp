@@ -16,14 +16,15 @@
     #include <Availability.h>
 #endif
 
-// aligned_alloc() is macOS 10.15+ / iOS 13+
-#if !defined(__APPLE__)
+#define SLB_HAS_MEMALIGN 0
+#define SLB_HAS_ALIGNED_ALLOC 0
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__APPLE__)
     #define SLB_HAS_ALIGNED_ALLOC 1
+    #define SLB_HAS_MEMALIGN 1
+// aligned_alloc() is macOS 10.15+ / iOS 13+
 #elif (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_15) \
    || (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_13_0)
     #define SLB_HAS_ALIGNED_ALLOC 1
-#else
-    #define SLB_HAS_ALIGNED_ALLOC 0
 #endif
 
 // When exceptions are disabled (e.g. in coverage build), we redefine catch2's REQUIRE_THROWS, so we can compile.
@@ -36,8 +37,6 @@
     #undef REQUIRE_THROWS_AS
     #define REQUIRE_THROWS_AS(...)
 #endif
-
-#pragma clang optimize off
 
 static decltype(auto) allocWithNew()        { return new std::vector<float>(32); }
 static decltype(auto) allocWithNewArray()   { return new float[32]; }
@@ -57,7 +56,7 @@ static decltype(auto) allocWithPosixMemalign()
 #   if SLB_HAS_ALIGNED_ALLOC
     static decltype(auto) allocWithAlignedAlloc() { return aligned_alloc(32, 32*sizeof(float)); }
 #   endif
-#   if !defined(__APPLE__)
+#   if SLB_HAS_MEMALIGN
     static decltype(auto) allocWithMemalign()     { return memalign(32, 32*sizeof(float)); }
 #   endif
 
@@ -67,7 +66,9 @@ static decltype(auto) allocWithPosixMemalign()
 static volatile void* allocSink = nullptr;
 
 // Turn off clang optimizations for these functions
+#if defined(__clang__)
 #pragma clang optimize off
+#endif
 
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
@@ -139,7 +140,9 @@ static void testDeleteArray(MemorySentinel& sentinel, T&& allocFunc)
     REQUIRE(sentinel.getAndClearTransgressionsOccured());
 }
 
+#if defined(__clang__)
 #pragma clang optimize on
+#endif
 
 TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
 {
@@ -226,7 +229,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         sentinel.setArmed(false);
     #endif
     
-    #if !defined(__APPLE__)
+    #if SLB_HAS_MEMALIGN
         sentinel.setArmed(true);
         REQUIRE(sentinel.isArmed());
         heapCArray = nullptr;
