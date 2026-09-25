@@ -239,9 +239,9 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     int stdVectorOverhead = sizeof(std::vector<float>);
     int bytesAllocatedFor32FloatVector = 32*sizeof(float) + stdVectorOverhead;
 
-#if defined(_MSC_VER) && defined(_DEBUG) &&_ITERATOR_DEBUG_LEVEL > 1 // MSVC Debug results in additional 
+#if defined(_MSC_VER) && defined(_DEBUG) &&_ITERATOR_DEBUG_LEVEL > 1 // MSVC Debug results in additional
     bytesAllocatedFor32FloatVector += 16;
-#endif 
+#endif
 
     std::vector<float>* heapObject;
     SECTION("quota fits") {
@@ -274,4 +274,70 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         
         // delete not necessary, since we never allocated
     }
+}
+
+TEST_CASE("MemorySentinel Tests: deallocation of nullptr is not a transgression")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+
+    SECTION("SILENT") {
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+
+        // NOTE: Catch's macros allocate memory, so we must not use them while the sentinel is armed
+        sentinel.setArmed(true);
+
+        std::vector<float>* nullObject = nullptr;
+        delete nullObject;
+        const bool deleteTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+        float* nullArray = nullptr;
+        delete[] nullArray;
+        const bool deleteArrayTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+        free(nullptr);
+        const bool freeTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+        sentinel.setArmed(false);
+        
+        // use catch macros AFTER unarming the sentinel, since they may allocate memory
+        REQUIRE_FALSE(deleteTransgressed);
+        REQUIRE_FALSE(deleteArrayTransgressed);
+        REQUIRE_FALSE(freeTransgressed);
+    }
+
+#ifndef SLB_EXCEPTIONS_DISABLED
+    SECTION("THROW_EXCEPTION") {
+        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+
+        bool hasThrown = false;
+        bool deleteTransgressed = true, deleteArrayTransgressed = true, freeTransgressed = true;
+
+        sentinel.setArmed(true);
+        try {
+            std::vector<float>* nullObject = nullptr;
+            delete nullObject;
+            deleteTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+            float* nullArray = nullptr;
+            delete[] nullArray;
+            deleteArrayTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+            free(nullptr);
+            freeTransgressed = sentinel.getAndClearTransgressionsOccured();
+        } catch (const std::bad_alloc&) {
+            hasThrown = true;
+        }
+        sentinel.setArmed(false);
+
+        // use catch macros AFTER unarming the sentinel, since they may allocate memory
+        REQUIRE_FALSE(hasThrown); // deallocating a nullptr must never throw
+        REQUIRE_FALSE(deleteTransgressed);
+        REQUIRE_FALSE(deleteArrayTransgressed);
+        REQUIRE_FALSE(freeTransgressed);
+    }
+#endif
+
+    sentinel.setArmed(false);
+    sentinel.clearTransgressions();
 }
