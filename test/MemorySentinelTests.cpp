@@ -185,7 +185,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         
         sentinel.setArmed(false);
     }
-    #if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
+    #if (defined(__clang__) || defined(__GNUC__))
         SECTION("THROW_EXCEPTION - malloc/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithMalloc);
