@@ -16,11 +16,14 @@
     #include <Availability.h>
 #endif
 
-#define SLB_HAS_MEMALIGN 0
-#define SLB_HAS_ALIGNED_ALLOC 0
+// memalign is a GLIBC extension declared in <malloc.h>
+#if defined(__GLIBC__)
+    #include <malloc.h>
+    #define SLB_HAS_MEMALIGN 1
+#endif
+
 #if (defined(__clang__) || defined(__GNUC__)) && !defined(__APPLE__)
     #define SLB_HAS_ALIGNED_ALLOC 1
-    #define SLB_HAS_MEMALIGN 1
 // aligned_alloc() is macOS 10.15+ / iOS 13+
 #elif (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_15) \
    || (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_13_0)
@@ -53,10 +56,10 @@ static decltype(auto) allocWithPosixMemalign()
     if (posix_memalign(&p, 32, 32*sizeof(float)) != 0) { p = nullptr; }
     return p;
 }
-#   if SLB_HAS_ALIGNED_ALLOC
+#   ifdef SLB_HAS_ALIGNED_ALLOC
     static decltype(auto) allocWithAlignedAlloc() { return aligned_alloc(32, 32*sizeof(float)); }
 #   endif
-#   if SLB_HAS_MEMALIGN
+#   ifdef SLB_HAS_MEMALIGN
     static decltype(auto) allocWithMemalign()     { return memalign(32, 32*sizeof(float)); }
 #   endif
 
@@ -284,7 +287,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         }
     #endif
     
-    #if !defined(__APPLE__)
+    #if SLB_HAS_MEMALIGN
         SECTION("THROW_EXCEPTION - memalign/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithMemalign);
