@@ -101,21 +101,25 @@ static inline bool isNoOpDealloc(void* ptr) noexcept
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - Hijack malloc/free
-// TODO: This should work for GLIBC, however, symbols are unresolved in TravisCI environment - that's why we disable it for now
-#if (defined(__clang__) || defined(__GNUC__)) && !defined(__GLIBC__)
+
+#if (defined(__clang__) || defined(__GNUC__))
 
 static void* (*builtinMalloc)(size_t) = nullptr;
 static void* (*builtinCalloc)(size_t, size_t) = nullptr;
 static void* (*builtinRealloc)(void*, size_t) = nullptr;
 static void (*builtinFree)(void*) = nullptr;
 
+#if defined(__GLIBC__)
+// When using GLIBC, dlsym itself may call malloc() etc, which would trigger a recursion. Therefore, we use these aliases
+extern "C" void* __libc_malloc(size_t);
+extern "C" void* __libc_calloc(size_t, size_t);
+extern "C" void* __libc_realloc(void*, size_t);
+extern "C" void __libc_free(void*);
+#endif
+
 static void initMallocHijack()
 {
-#if defined(__GLIBC__ )
-    extern void* __libc_malloc(size_t);
-    extern void* __libc_calloc(size_t, size_t);
-    extern void* __libc_realloc(void*, size_t);
-    extern void __libc_free(void*);
+#if defined(__GLIBC__)
     builtinMalloc =  __libc_malloc;
     builtinCalloc = __libc_calloc;
     builtinRealloc = __libc_realloc;
@@ -180,7 +184,7 @@ void free(void* ptr)
     builtinFree(ptr);
 }
 
-#else // ifdef GNU/Clang
+#else // All compilers other than GNU/Clang
 // Define these for Microsoft Compiler and GCC without GLIB, as they're used in new/delete overrides
 void* builtinMalloc(size_t size)
 {
@@ -190,7 +194,7 @@ void builtinFree(void* ptr)
 {
     return std::free(ptr);
 }
-#endif
+#endif // (defined(__clang__) || defined(__GNUC__))
 
 // --------------------------------------------------------------------------------------------------------------------
 // MARK: - new
