@@ -32,6 +32,9 @@ static decltype(auto) allocWithRealloc()    { return std::realloc(nullptr, 32*si
 static decltype(auto) allocWithNewNoExcept()      noexcept { return operator new(sizeof(std::vector<float>(32)), std::nothrow); }
 static decltype(auto) allocWithNewArrayNoExcept() noexcept { return operator new[](sizeof(float[32]), std::nothrow); }
 
+// Sink for allocations whose result is not used otherwise - this prevents the compiler from optimizing away the allocation
+static volatile void* allocSink = nullptr;
+
 // Turn off clang optimizations for these functions
 #pragma clang optimize off
 
@@ -224,7 +227,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
             
             // NOTE: Catch's REQUIRE_THROWS may allocate memory under certain circumstances, therefore we avoid it!
             try {
-                allocWithNew();
+                allocSink = allocWithNew();
             } catch (const std::bad_alloc& e) {
                 hasThrown = true;
             }
@@ -265,7 +268,7 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
             
             // NOTE: Catch's REQUIRE_THROWS may allocate memory under certain circumstances, therefore we avoid it!
             try {
-                allocWithNew();
+                allocSink = allocWithNew();
             } catch (const std::bad_alloc& e) {
                 hasThrown = true;
             }
