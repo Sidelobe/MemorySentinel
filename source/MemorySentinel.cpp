@@ -8,6 +8,7 @@
 
 #include "MemorySentinel.hpp"
 
+#include <cerrno>
 #include <cstdlib>
 #include <future>
 #include <string>
@@ -21,7 +22,7 @@
 #endif
 
 #if defined(__clang__) || defined(__GNUC__)
-__attribute__((noreturn)) 
+__attribute__((noreturn))
 #endif
 static void handleTransgressionException() noexcept(false)
 {
@@ -108,6 +109,8 @@ static void* (*builtinMalloc)(size_t) = nullptr;
 static void* (*builtinCalloc)(size_t, size_t) = nullptr;
 static void* (*builtinRealloc)(void*, size_t) = nullptr;
 static void (*builtinFree)(void*) = nullptr;
+static void* (*builtinMemalign)(size_t, size_t) = nullptr;         ///< memalign / aligned_alloc (same signature)
+static int (*builtinPosixMemalign)(void**, size_t, size_t) = nullptr;
 
 #if defined(__GLIBC__)
 // When using GLIBC, dlsym itself may call malloc() etc, which would trigger a recursion. Therefore, we use these aliases
@@ -115,6 +118,7 @@ extern "C" void* __libc_malloc(size_t);
 extern "C" void* __libc_calloc(size_t, size_t);
 extern "C" void* __libc_realloc(void*, size_t);
 extern "C" void __libc_free(void*);
+extern "C" void* __libc_memalign(size_t, size_t);
 #endif
 
 static void initMallocHijack()
@@ -124,17 +128,28 @@ static void initMallocHijack()
     builtinCalloc = __libc_calloc;
     builtinRealloc = __libc_realloc;
     builtinFree = __libc_free;
+    // NOTE: glibc has no __libc_posix_memalign / __libc_aligned_alloc -- both are built on memalign below
+    builtinMemalign = __libc_memalign;
 #else
     builtinMalloc = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
     builtinCalloc = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
     builtinRealloc = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
     builtinFree = (void (*)(void*)) dlsym(RTLD_NEXT, "free");
+    // NOTE: these are optional -- e.g. memalign does not exist on macOS
+    builtinMemalign = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "aligned_alloc");
+    builtinPosixMemalign = (int (*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
 #endif
 
     if (!(builtinMalloc && builtinCalloc && builtinRealloc && builtinFree)) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
     }
+}
+
+/** An alignment is valid for posix_memalign if it is a power of two multiple of sizeof(void*) */
+static inline bool isValidAlignment(size_t alignment) noexcept
+{
+    return alignment != 0 && (alignment % sizeof(void*)) == 0 && (alignment & (alignment - 1)) == 0;
 }
 
 void* malloc(size_t size)
@@ -182,6 +197,65 @@ void free(void* ptr)
         hijack("deallocation with free", 0, nt);
     }
     builtinFree(ptr);
+}
+
+// MARK: - Hijack aligned allocations
+// NOTE: memory from these is released with free(), which is hijacked above
+
+#if defined(__GLIBC__)
+/** memalign is a GLIBC extension -- it does not exist e.g. on macOS */
+extern "C" void* memalign(size_t alignment, size_t size)
+{
+    if (builtinMemalign == nullptr) {
+        initMallocHijack();
+    }
+    if (isHijackActive) {
+        hijack("allocation with memalign", size);
+    }
+    return builtinMemalign(alignment, size);
+}
+#endif
+
+extern "C" void* aligned_alloc(size_t alignment, size_t size)
+{
+    if (builtinMalloc == nullptr) {
+        initMallocHijack();
+    }
+    if (isHijackActive) {
+        hijack("allocation with aligned_alloc", size);
+    }
+    if (builtinMemalign != nullptr) {
+        return builtinMemalign(alignment, size);
+    }
+    void* ptr = nullptr;
+    if (builtinPosixMemalign == nullptr || builtinPosixMemalign(&ptr, alignment, size) != 0) {
+        return nullptr;
+    }
+    return ptr;
+}
+
+extern "C" int posix_memalign(void** memptr, size_t alignment, size_t size)
+{
+    if (builtinMalloc == nullptr) {
+        initMallocHijack();
+    }
+    if (isHijackActive) {
+        hijack("allocation with posix_memalign", size);
+    }
+    if (builtinPosixMemalign != nullptr) {
+        return builtinPosixMemalign(memptr, alignment, size);
+    }
+
+    // No 'builtin' posix_memalign available (GLIBC): emulate it on top of memalign
+    if (memptr == nullptr || !isValidAlignment(alignment)) {
+        return EINVAL;
+    }
+    void* ptr = builtinMemalign(alignment, size);
+    if (ptr == nullptr) {
+        return ENOMEM;
+    }
+    *memptr = ptr;
+    return 0;
 }
 
 #else // All compilers other than GNU/Clang
