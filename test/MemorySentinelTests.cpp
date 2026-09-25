@@ -92,6 +92,28 @@ static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
     // freeing not necessary, since allocation was intercepted by exception
 }
 
+template<typename AllocFunc, typename FreeFunc>
+static void testDetection(MemorySentinel& sentinel, AllocFunc& allocFunc, FreeFunc freeFunc)
+{
+    sentinel.clearTransgressions();
+    sentinel.setArmed(true);
+
+    volatile auto m = allocFunc();
+    const bool wasArmed = sentinel.isArmed();
+    const bool allocationDetected = sentinel.getAndClearTransgressionsOccured();
+
+    freeFunc(m); // always noexcept
+    const bool deallocationDetected = sentinel.getAndClearTransgressionsOccured();
+
+    sentinel.setArmed(false);
+
+    // NOTE: Catch's macros may allocate memory, therefore we only use them after disarming
+    REQUIRE(wasArmed);
+    REQUIRE(m != nullptr);
+    REQUIRE(allocationDetected);
+    REQUIRE(deallocationDetected);
+}
+
 template<typename T, typename U>
 static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U& freeFunc)
 {
@@ -151,6 +173,8 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     
     SECTION("SILENT") {
         MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+        
+        // while not armed, nothing is detected
         sentinel.setArmed(false);
         REQUIRE_FALSE(sentinel.isArmed());
         std::vector<float>* heapObject = allocWithNew();
@@ -159,89 +183,27 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         sentinel.clearTransgressions();
         delete heapObject; // clean up
         
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapObject = allocWithNew();
-        REQUIRE(heapObject != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        delete heapObject; // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        auto deleteObject = [](auto* p) { delete p; };
+        auto deleteArray  = [](auto* p) { delete[] p; };
+        auto freeMemory   = [](auto* p) { std::free(p); };
         
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        float* heapArray = allocWithNewArray();
-        REQUIRE(heapArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        delete[] heapArray; // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
+        testDetection(sentinel, allocWithNew,      deleteObject);
+        testDetection(sentinel, allocWithNewArray, deleteArray);
         
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        void* heapCArray = nullptr;
-        heapCArray = allocWithMalloc();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-        
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapCArray = nullptr;
-        heapCArray = allocWithCalloc();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-        
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapCArray = nullptr;
-        heapCArray = allocWithRealloc();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-        
+    // NOTE: the C allocators are only hijacked on GCC / Clang
     #if defined(__clang__) || defined(__GNUC__)
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapCArray = nullptr;
-        heapCArray = allocWithPosixMemalign();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-    #endif
+        testDetection(sentinel, allocWithMalloc,        freeMemory);
+        testDetection(sentinel, allocWithCalloc,        freeMemory);
+        testDetection(sentinel, allocWithRealloc,       freeMemory);
+        testDetection(sentinel, allocWithPosixMemalign, freeMemory);
         
-    #if SLB_HAS_ALIGNED_ALLOC
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapCArray = nullptr;
-        heapCArray = allocWithAlignedAlloc();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
+        #if SLB_HAS_ALIGNED_ALLOC
+        testDetection(sentinel, allocWithAlignedAlloc,  freeMemory);
+        #endif
+        #if SLB_HAS_MEMALIGN
+        testDetection(sentinel, allocWithMemalign,      freeMemory);
+        #endif
     #endif
-    
-    #if SLB_HAS_MEMALIGN
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapCArray = nullptr;
-        heapCArray = allocWithMemalign();
-        REQUIRE(heapCArray != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        free(heapCArray); // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-    #endif
-        
     }
     
     SECTION("LOG") {
