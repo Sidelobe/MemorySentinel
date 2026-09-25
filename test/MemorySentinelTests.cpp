@@ -12,6 +12,20 @@
 
 #include <vector>
 
+#if defined(__APPLE__)
+    #include <Availability.h>
+#endif
+
+// aligned_alloc() is macOS 10.15+ / iOS 13+
+#if !defined(__APPLE__)
+    #define SLB_HAS_ALIGNED_ALLOC 1
+#elif (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_15) \
+   || (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_13_0)
+    #define SLB_HAS_ALIGNED_ALLOC 1
+#else
+    #define SLB_HAS_ALIGNED_ALLOC 0
+#endif
+
 // When exceptions are disabled (e.g. in coverage build), we redefine catch2's REQUIRE_THROWS, so we can compile.
 // Any REQUIRE_THROWS statements in tests will dissappear / do nothing
 #ifdef SLB_EXCEPTIONS_DISABLED
@@ -23,12 +37,6 @@
     #define REQUIRE_THROWS_AS(...)
 #endif
 
-
-// Turn off clang optimizations for these functions: the compiler is allowed to elide calls to the
-// replaceable global allocation functions (C++14 [expr.new]), which would make the allocation - and
-// with it the expected std::bad_alloc - disappear entirely. Keeping the allocation helpers in this
-// region makes them opaque, so no call site can optimize the allocation away.
-// NOTE: GCC ignores this pragma, see -fno-allocation-dce in CMakeLists.txt
 #pragma clang optimize off
 
 static decltype(auto) allocWithNew()        { return new std::vector<float>(32); }
@@ -46,14 +54,20 @@ static decltype(auto) allocWithPosixMemalign()
     if (posix_memalign(&p, 32, 32*sizeof(float)) != 0) { p = nullptr; }
     return p;
 }
-static decltype(auto) allocWithAlignedAlloc() { return aligned_alloc(32, 32*sizeof(float)); }
-#if defined(__GLIBC__)
-static decltype(auto) allocWithMemalign()     { return memalign(32, 32*sizeof(float)); }
-#endif
+#   if SLB_HAS_ALIGNED_ALLOC
+    static decltype(auto) allocWithAlignedAlloc() { return aligned_alloc(32, 32*sizeof(float)); }
+#   endif
+#   if !defined(__APPLE__)
+    static decltype(auto) allocWithMemalign()     { return memalign(32, 32*sizeof(float)); }
+#   endif
+
 #endif
 
 // Sink for allocations whose result is not used otherwise - this prevents the compiler from optimizing away the allocation
 static volatile void* allocSink = nullptr;
+
+// Turn off clang optimizations for these functions
+#pragma clang optimize off
 
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
@@ -158,6 +172,72 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         delete[] heapArray; // clean up
         REQUIRE(sentinel.getAndClearTransgressionsOccured());
         sentinel.setArmed(false);
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        void* heapCArray = nullptr;
+        heapCArray = allocWithMalloc();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapCArray = nullptr;
+        heapCArray = allocWithCalloc();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapCArray = nullptr;
+        heapCArray = allocWithRealloc();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+        
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapCArray = nullptr;
+        heapCArray = allocWithPosixMemalign();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+        
+        
+    #if SLB_HAS_ALIGNED_ALLOC
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapCArray = nullptr;
+        heapCArray = allocWithAlignedAlloc();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+    #endif
+    
+    #if !defined(__APPLE__)
+        sentinel.setArmed(true);
+        REQUIRE(sentinel.isArmed());
+        heapCArray = nullptr;
+        heapCArray = allocWithMemalign();
+        REQUIRE(heapCArray != nullptr);
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        free(heapCArray); // clean up
+        REQUIRE(sentinel.getAndClearTransgressionsOccured());
+        sentinel.setArmed(false);
+    #endif
+        
     }
     
     SECTION("LOG") {
@@ -223,29 +303,29 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
             testAllocation(sentinel, allocWithRealloc);
             testFreeing(sentinel, allocWithRealloc, free);
         }
-    #endif
 
-    // Aligned allocations are commonly used by SIMD / audio code -- they must be detected as well
-    #if defined(__clang__) || defined(__GNUC__)
         SECTION("THROW_EXCEPTION - posix_memalign/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithPosixMemalign);
             testFreeing(sentinel, allocWithPosixMemalign, free);
         }
 
+    #if SLB_HAS_ALIGNED_ALLOC
         SECTION("THROW_EXCEPTION - aligned_alloc/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithAlignedAlloc);
             testFreeing(sentinel, allocWithAlignedAlloc, free);
         }
-
-        #if defined(__GLIBC__)
+    #endif
+    
+    #if !defined(__APPLE__)
         SECTION("THROW_EXCEPTION - memalign/free") {
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithMemalign);
             testFreeing(sentinel, allocWithMemalign, free);
         }
-        #endif
+    #endif
+    
     #endif
     
 #endif // SLB_EXCEPTIONS_DISABLED

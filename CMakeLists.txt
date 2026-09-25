@@ -59,6 +59,12 @@ if (MSVC)
   target_compile_options(fftw3f PRIVATE /bigobj)
 endif()
 
+# silence warning for compilation units with no symbols (libtool flag, only valid with Xcode generator)
+if(CMAKE_GENERATOR STREQUAL "Xcode")
+    set_target_properties(fftw3f PROPERTIES STATIC_LIBRARY_OPTIONS "-no_warning_for_no_symbols")
+endif()
+
+
 if (CODE_COVERAGE)
   message("Code Coverage tracking enabled")
   # When building with coverage, we usually disable exceptions, for more meaningful results
