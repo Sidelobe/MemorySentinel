@@ -23,10 +23,8 @@ add_library(${LIB_NAME} ${source})
 
 # TEST TARGET
 set (TEST_NAME "${LIB_NAME}Test")
-set (FFTW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/external-utils/fftw-3.3.10")
 
 file(GLOB_RECURSE source_test "test/*.[h,c]*")
-list(FILTER source_test EXCLUDE REGEX "external-utils/fftw-3.3.10/") # FFTW is built as its own target
 add_executable(${TEST_NAME} ${source_test})
 
 # Create XCode / VS groups
@@ -35,35 +33,6 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${source})
 target_include_directories(${TEST_NAME} PUBLIC source)
 target_include_directories(${TEST_NAME} PRIVATE test)
 target_include_directories(${TEST_NAME} PRIVATE test/external-utils)
-
-# FFTW (test target only) -- single precision, scalar:
-# without SIMD, FFTW allocates with plain malloc, which MemorySentinel can intercept
-set (CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE) # FFTW's CMakeLists requires cmake >= 3.0
-set (BUILD_SHARED_LIBS     OFF CACHE BOOL "" FORCE)
-set (BUILD_TESTS           OFF CACHE BOOL "" FORCE)
-set (ENABLE_FLOAT          ON  CACHE BOOL "" FORCE)
-set (ENABLE_LONG_DOUBLE    OFF CACHE BOOL "" FORCE)
-set (ENABLE_QUAD_PRECISION OFF CACHE BOOL "" FORCE)
-set (ENABLE_THREADS        OFF CACHE BOOL "" FORCE)
-set (ENABLE_OPENMP         OFF CACHE BOOL "" FORCE)
-set (ENABLE_SSE            OFF CACHE BOOL "" FORCE)
-set (ENABLE_SSE2           OFF CACHE BOOL "" FORCE)
-set (ENABLE_AVX            OFF CACHE BOOL "" FORCE)
-set (ENABLE_AVX2           OFF CACHE BOOL "" FORCE)
-set (DISABLE_FORTRAN       ON  CACHE BOOL "" FORCE)
-add_subdirectory(${FFTW_DIR} ${CMAKE_BINARY_DIR}/fftw EXCLUDE_FROM_ALL)
-
-target_include_directories(${TEST_NAME} PRIVATE ${FFTW_DIR}/api)
-
-if (MSVC)
-  target_compile_options(fftw3f PRIVATE /bigobj)
-endif()
-
-# silence warning for compilation units with no symbols (libtool flag, only valid with Xcode generator)
-if(CMAKE_GENERATOR STREQUAL "Xcode")
-    set_target_properties(fftw3f PROPERTIES STATIC_LIBRARY_OPTIONS "-no_warning_for_no_symbols")
-endif()
-
 
 if (CODE_COVERAGE)
   message("Code Coverage tracking enabled")
@@ -79,7 +48,7 @@ if (CODE_COVERAGE)
   target_link_options(${TEST_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
 endif()
 
-target_link_libraries(${TEST_NAME} ${LIB_NAME} fftw3f)
+target_link_libraries(${TEST_NAME} ${LIB_NAME})
 
 # Link to DL Libs
 if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
@@ -99,7 +68,7 @@ enable_testing()
 catch_discover_tests(${TEST_NAME} PROPERTIES LABELS ${TEST_NAME} TIMEOUT 300)
 
 
-# These tests rely on allocations actually being performed. These compile options should avoid the compiler 
+# These tests rely on allocations actually being performed. These compile options should avoid the compiler
 # optimizing the allocations away.
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   target_compile_options(${TEST_NAME} PRIVATE -fno-allocation-dce
