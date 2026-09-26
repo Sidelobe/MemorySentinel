@@ -52,6 +52,7 @@
 
 static decltype(auto) allocWithNew()        { return new std::vector<float>(32); }
 static decltype(auto) allocWithNewArray()   { return new float[32]; }
+static decltype(auto) allocWithNewFloat()   { return new float(1.f); } // trivial type: safe to sized-delete
 static decltype(auto) allocWithMalloc()     { return std::malloc(32*sizeof(float)); }
 static decltype(auto) allocWithCalloc()     { return std::calloc(32, sizeof(float)); }
 static decltype(auto) allocWithRealloc()    { return std::realloc(nullptr, 32*sizeof(float)); }
@@ -122,7 +123,7 @@ static void testDetection(MemorySentinel& sentinel, AllocFunc& allocFunc, FreeFu
 }
 
 template<typename T, typename U>
-static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U& freeFunc)
+static void testFreeing(MemorySentinel& sentinel, T& allocFunc, U freeFunc)
 {
     sentinel.clearTransgressions();
     // allocate with unarmed sentinel
@@ -197,6 +198,10 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         testDetection(sentinel, allocWithNew,      deleteObject);
         testDetection(sentinel, allocWithNewArray, deleteArray);
         
+        // sized deallocation overloads
+        testDetection(sentinel, allocWithNewFloat, [](auto* p) { operator delete(p, sizeof(*p)); });
+        testDetection(sentinel, allocWithNewArray, [](auto* p) { operator delete[](p, 32 * sizeof(*p)); });
+        
     // NOTE: the C allocators are only hijacked on GCC / Clang
     #if defined(__clang__) || defined(__GNUC__)
         testDetection(sentinel, allocWithMalloc,        freeMemory);
@@ -239,6 +244,10 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
         
         testDeleteArray(sentinel, allocWithNewArray);
         testDeleteArray(sentinel, allocWithNewArrayNoExcept);
+        
+        // sized deallocation overloads
+        testFreeing(sentinel, allocWithNewFloat, [](auto* p) { operator delete(p, sizeof(*p)); });
+        testFreeing(sentinel, allocWithNewArray, [](auto* p) { operator delete[](p, 32 * sizeof(*p)); });
         
         sentinel.setArmed(false);
     }
@@ -373,6 +382,12 @@ TEST_CASE("MemorySentinel Tests: deallocation of nullptr is not a transgression"
         delete[] nullArray;
         const bool deleteArrayTransgressed = sentinel.getAndClearTransgressionsOccured();
 
+        operator delete(nullptr, sizeof(float));
+        const bool sizedDeleteTransgressed = sentinel.getAndClearTransgressionsOccured();
+
+        operator delete[](nullptr, sizeof(float));
+        const bool sizedDeleteArrayTransgressed = sentinel.getAndClearTransgressionsOccured();
+
         free(nullptr);
         const bool freeTransgressed = sentinel.getAndClearTransgressionsOccured();
 
@@ -381,6 +396,8 @@ TEST_CASE("MemorySentinel Tests: deallocation of nullptr is not a transgression"
         // use catch macros AFTER unarming the sentinel, since they may allocate memory
         REQUIRE_FALSE(deleteTransgressed);
         REQUIRE_FALSE(deleteArrayTransgressed);
+        REQUIRE_FALSE(sizedDeleteTransgressed);
+        REQUIRE_FALSE(sizedDeleteArrayTransgressed);
         REQUIRE_FALSE(freeTransgressed);
     }
 
@@ -433,6 +450,10 @@ TEST_CASE("MemorySentinel Tests: LOG behaviour")
 
     testDetection(sentinel, allocWithNew,      deleteObject);
     testDetection(sentinel, allocWithNewArray, deleteArray);
+
+    // sized deallocation overloads
+    testDetection(sentinel, allocWithNewFloat, [](auto* p) { operator delete(p, sizeof(*p)); });
+    testDetection(sentinel, allocWithNewArray, [](auto* p) { operator delete[](p, 32 * sizeof(*p)); });
 
 #if defined(__clang__) || defined(__GNUC__)
     auto freeMemory = [](auto* p) { std::free(p); };
@@ -525,15 +546,20 @@ TEST_CASE("MemorySentinel Tests: allocation quota")
     SECTION("deallocations are a transgression, even with quota left") {
         sentinel.setArmed(false);
         float* heapArray = allocWithNewArray();
+        float* heapFloat = allocWithNewFloat();
 
         MemorySentinel::setAllocationQuota(quota);
         sentinel.setArmed(true);
         delete[] heapArray;
-        const int remaining = MemorySentinel::getRemainingAllocationQuota();
         const bool detected = sentinel.getAndClearTransgressionsOccured();
+        // the sized overloads pass the actual size, which must not be mistaken for an allocation
+        operator delete(heapFloat, sizeof(float));
+        const bool sizedDetected = sentinel.getAndClearTransgressionsOccured();
+        const int remaining = MemorySentinel::getRemainingAllocationQuota();
         sentinel.setArmed(false);
 
         REQUIRE(detected);
+        REQUIRE(sizedDetected);
         REQUIRE(remaining == quota); // deallocations never consume quota
     }
 

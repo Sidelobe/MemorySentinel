@@ -51,11 +51,13 @@ sentinel.clearTransgressions();
 
 
 ### Requirements / Compatibility
- - C++14
- - STL
- - tested with GCC, Clang and MSVC
- - tested with Catch2 Test Framework
- - tested on macos, windows & linux
+ - C++14, STL
+ - Catch2 Test Framework
+ - Supports GCC, Clang; macos & linux -- detects the following (de)allocators:
+ 	- `malloc`, `calloc`, `realloc`, `free`, `memalign` (GLIBC), `alloc_aligned`, `posix_memalign` (where available)
+ 	- `new`, `new[]`, `delete`,  `delete[]`
+ - Supports MSVC on Windows (functionality reduced):
+ 	- `new`, `new[]`, `delete`,  `delete[]`
 
 ### Status
 
