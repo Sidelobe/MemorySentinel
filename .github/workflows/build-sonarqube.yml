@@ -5,11 +5,11 @@ on:
 jobs:
   build:
     name: Linux, GCC, Release, Coverage & SonarQube
-    runs-on: ubuntu-24.10
+    runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: 'bw-output' # Directory where build-wrapper output will be placed
-      cxx: g++-14
-      cc: gcc-14
+      cxx: g++-15
+      cc: gcc-15
     steps:
     - uses: actions/checkout@v6
       with:
