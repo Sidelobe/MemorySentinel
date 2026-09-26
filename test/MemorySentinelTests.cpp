@@ -10,6 +10,9 @@
 
 #include "MemorySentinel.hpp"
 
+#include <atomic>
+#include <cerrno>
+#include <thread>
 #include <vector>
 
 #if defined(__APPLE__)
@@ -41,6 +44,12 @@
     #define REQUIRE_THROWS_AS(...)
 #endif
 
+// Turn off clang optimizations for these functions.
+// NOTE: for GCC, we use -fno-allocation-dce in CMakeLists.txt
+#if defined(__clang__)
+#pragma clang optimize off
+#endif
+
 static decltype(auto) allocWithNew()        { return new std::vector<float>(32); }
 static decltype(auto) allocWithNewArray()   { return new float[32]; }
 static decltype(auto) allocWithMalloc()     { return std::malloc(32*sizeof(float)); }
@@ -67,11 +76,6 @@ static decltype(auto) allocWithPosixMemalign()
 
 // Sink for allocations whose result is not used otherwise - this prevents the compiler from optimizing away the allocation
 static volatile void* allocSink = nullptr;
-
-// Turn off clang optimizations for these functions
-#if defined(__clang__)
-#pragma clang optimize off
-#endif
 
 template<typename T>
 static void testAllocation(MemorySentinel& sentinel, T& allocFunc)
@@ -209,19 +213,6 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     #endif
     }
     
-    SECTION("LOG") {
-        MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
-        std::vector<float>* heapObject = allocWithNew();
-        sentinel.setArmed(true);
-        REQUIRE(sentinel.isArmed());
-        heapObject = allocWithNew();
-        REQUIRE(heapObject != nullptr);
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        delete heapObject; // clean up
-        REQUIRE(sentinel.getAndClearTransgressionsOccured());
-        sentinel.setArmed(false);
-    }
-    
 #ifndef SLB_EXCEPTIONS_DISABLED
     SECTION("THROW_EXCEPTION - new/delete") {
         MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
@@ -284,14 +275,6 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
             MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
             testAllocation(sentinel, allocWithAlignedAlloc);
             testFreeing(sentinel, allocWithAlignedAlloc, free);
-        }
-    #endif
-    
-    #if SLB_HAS_MEMALIGN
-        SECTION("THROW_EXCEPTION - memalign/free") {
-            MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
-            testAllocation(sentinel, allocWithMemalign);
-            testFreeing(sentinel, allocWithMemalign, free);
         }
     #endif
     
@@ -435,4 +418,265 @@ TEST_CASE("MemorySentinel Tests: deallocation of nullptr is not a transgression"
 
     sentinel.setArmed(false);
     sentinel.clearTransgressions();
+}
+
+
+TEST_CASE("MemorySentinel Tests: LOG behaviour")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::LOG);
+    sentinel.clearTransgressions();
+
+    auto deleteObject = [](auto* p) { delete p; };
+    auto deleteArray  = [](auto* p) { delete[] p; };
+
+    testDetection(sentinel, allocWithNew,      deleteObject);
+    testDetection(sentinel, allocWithNewArray, deleteArray);
+
+#if defined(__clang__) || defined(__GNUC__)
+    auto freeMemory = [](auto* p) { std::free(p); };
+    testDetection(sentinel, allocWithMalloc,        freeMemory);
+    testDetection(sentinel, allocWithCalloc,        freeMemory);
+    testDetection(sentinel, allocWithRealloc,       freeMemory);
+    testDetection(sentinel, allocWithPosixMemalign, freeMemory);
+
+    #if SLB_HAS_ALIGNED_ALLOC
+    testDetection(sentinel, allocWithAlignedAlloc,  freeMemory);
+    #endif
+    #if SLB_HAS_MEMALIGN
+    testDetection(sentinel, allocWithMemalign,      freeMemory);
+    #endif
+#endif
+
+    // NOTE: Catch's macros may allocate memory, therefore we only use them after disarming
+    sentinel.setArmed(true);
+
+    // the nothrow variants return nullptr while armed
+    void* nothrowObject = allocWithNewNoExcept();
+    const bool nothrowObjectDetected = sentinel.getAndClearTransgressionsOccured();
+    void* nothrowArray = allocWithNewArrayNoExcept();
+    const bool nothrowArrayDetected = sentinel.getAndClearTransgressionsOccured();
+
+    // deallocating a nullptr remains a no-op
+    std::vector<float>* nullObject = nullptr;
+    delete nullObject;
+    const bool nullDeleteDetected = sentinel.getAndClearTransgressionsOccured();
+    float* nullArray = nullptr;
+    delete[] nullArray;
+    const bool nullDeleteArrayDetected = sentinel.getAndClearTransgressionsOccured();
+    free(nullptr);
+    const bool nullFreeDetected = sentinel.getAndClearTransgressionsOccured();
+
+    sentinel.setArmed(false);
+
+    REQUIRE(nothrowObject == nullptr);
+    REQUIRE(nothrowObjectDetected);
+    REQUIRE(nothrowArray == nullptr);
+    REQUIRE(nothrowArrayDetected);
+    REQUIRE_FALSE(nullDeleteDetected);
+    REQUIRE_FALSE(nullDeleteArrayDetected);
+    REQUIRE_FALSE(nullFreeDetected);
+}
+
+TEST_CASE("MemorySentinel Tests: nothrow new returns nullptr while armed")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+
+    sentinel.setArmed(true);
+    void* p1 = allocWithNewNoExcept();
+    const bool objectDetected = sentinel.getAndClearTransgressionsOccured();
+    void* p2 = allocWithNewArrayNoExcept();
+    const bool arrayDetected = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+
+    REQUIRE(p1 == nullptr);
+    REQUIRE(objectDetected);
+    REQUIRE(p2 == nullptr);
+    REQUIRE(arrayDetected);
+}
+
+TEST_CASE("MemorySentinel Tests: allocation quota")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+
+    constexpr int quota = 1024;
+    constexpr int arraySize = 32 * static_cast<int>(sizeof(float));
+
+    SECTION("allocations within the quota are permitted and consume it") {
+        MemorySentinel::setAllocationQuota(quota);
+        sentinel.setArmed(true);
+        float* heapArray = allocWithNewArray();
+        const int remaining = MemorySentinel::getRemainingAllocationQuota();
+        const bool detected = sentinel.getAndClearTransgressionsOccured();
+        sentinel.setArmed(false);
+
+        REQUIRE(heapArray != nullptr);
+        REQUIRE_FALSE(detected);
+        REQUIRE(remaining == quota - arraySize);
+        delete[] heapArray; // clean up
+    }
+
+    SECTION("deallocations are a transgression, even with quota left") {
+        sentinel.setArmed(false);
+        float* heapArray = allocWithNewArray();
+
+        MemorySentinel::setAllocationQuota(quota);
+        sentinel.setArmed(true);
+        delete[] heapArray;
+        const int remaining = MemorySentinel::getRemainingAllocationQuota();
+        const bool detected = sentinel.getAndClearTransgressionsOccured();
+        sentinel.setArmed(false);
+
+        REQUIRE(detected);
+        REQUIRE(remaining == quota); // deallocations never consume quota
+    }
+
+    MemorySentinel::setAllocationQuota(0);
+}
+
+#ifndef SLB_EXCEPTIONS_DISABLED
+TEST_CASE("MemorySentinel Tests: detection continues after a thrown transgression")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+    sentinel.clearTransgressions();
+
+    constexpr int numAttempts = 3;
+    int numThrows = 0;
+
+    sentinel.setArmed(true);
+    for (int i = 0; i < numAttempts; ++i) {
+        try {
+            allocSink = allocWithNew();
+        } catch (const std::bad_alloc&) {
+            ++numThrows;
+        }
+    }
+    const bool detected = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+
+    // the sentinel must remain active after having thrown -- every attempt is intercepted
+    REQUIRE(numThrows == numAttempts);
+    REQUIRE(detected);
+}
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+TEST_CASE("MemorySentinel Tests: a failing allocation is detected as well")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+
+    void* p = nullptr;
+    sentinel.setArmed(true);
+    const int result = posix_memalign(&p, 24, 64); // 24 is not a power of two -> EINVAL
+    const bool detected = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+
+    REQUIRE(result == EINVAL);
+    REQUIRE(p == nullptr);
+    REQUIRE(detected);
+}
+#endif
+
+TEST_CASE("MemorySentinel Tests: hijacking is process-wide, detection is per thread")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+
+    std::atomic<bool> go { false };
+    std::atomic<bool> done { false };
+    bool detectedOnWorker = false;
+    void* allocatedOnWorker = nullptr;
+
+    // NOTE: the thread is created while disarmed -- starting a thread allocates
+    std::thread worker([&] {
+        while (!go.load()) { std::this_thread::yield(); }
+        MemorySentinel& workerSentinel = MemorySentinel::getInstance();
+        workerSentinel.clearTransgressions();
+        allocatedOnWorker = allocWithMalloc();
+        detectedOnWorker = workerSentinel.getAndClearTransgressionsOccured();
+        done.store(true);
+    });
+
+    sentinel.setArmed(true);
+    go.store(true);
+    while (!done.load()) { std::this_thread::yield(); }
+    const bool detectedOnMain = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+    worker.join();
+    std::free(allocatedOnWorker);
+
+#if defined(__clang__) || defined(__GNUC__)
+    // arming is process-wide, so the worker's allocation is intercepted ...
+    REQUIRE(detectedOnWorker);
+#endif
+    // ... but the transgression is registered in the sentinel of the allocating thread
+    REQUIRE_FALSE(detectedOnMain);
+}
+
+#ifndef SLB_EXCEPTIONS_DISABLED
+namespace
+{
+/** Allocates in its destructor, i.e. while the stack is being unwound */
+struct AllocatesWhenDestroyed
+{
+    ~AllocatesWhenDestroyed() { allocSink = allocWithNew(); }
+};
+} // anonymous namespace
+
+TEST_CASE("MemorySentinel Tests: allocating while unwinding is registered, but does not throw")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION);
+    sentinel.clearTransgressions();
+
+    bool hasThrown = false;
+    sentinel.setArmed(true);
+    try {
+        AllocatesWhenDestroyed dtorAllocates; // its allocation happens during unwinding
+        allocSink = allocWithNew();           // this one throws
+    } catch (const std::bad_alloc&) {
+        hasThrown = true;
+    }
+    const bool detected = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+
+    // a second exception during unwinding would call std::terminate -- reaching this point proves it did not
+    REQUIRE(hasThrown);
+    REQUIRE(detected);
+}
+#endif
+
+TEST_CASE("MemorySentinel Tests: zero-size allocation")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+
+    // a 0-byte request must still yield a valid pointer
+    void* zeroBytes = operator new(0);
+    REQUIRE(zeroBytes != nullptr);
+    operator delete(zeroBytes);
+
+    sentinel.setArmed(true);
+    void* zeroBytesArmed = operator new(0, std::nothrow);
+    const bool detected = sentinel.getAndClearTransgressionsOccured();
+    sentinel.setArmed(false);
+
+    REQUIRE(zeroBytesArmed == nullptr);
+    REQUIRE(detected);
 }

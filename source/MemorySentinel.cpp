@@ -9,6 +9,7 @@
 #include "MemorySentinel.hpp"
 
 #include <cerrno>
+#include <exception>
 #include <cstdlib>
 #include <future>
 #include <string>
@@ -33,13 +34,47 @@ static void handleTransgressionException() noexcept(false)
 #endif
 }
 
+// Using pattern described here: https://stackoverflow.com/a/17850402/649700
+static bool isHijackActive = false;
+
+/**
+ * While a transgression is being handled, hijacking has to be suspended: the handler itself may
+ * allocate (printf, the exception object, ...), -> infinite recursion.
+ * NOTE: deliberately _not_ thread_local, as this could allocate.
+ */
+static bool isHandlingTransgression = false;
+
+/** Hijacking is active, and we are not already inside the transgression handler */
+static inline bool shouldHijack() noexcept
+{
+    return isHijackActive && !isHandlingTransgression;
+}
+
+/** Suspends hijacking for as long as it exists -- RAII, so it also recovers when the handler throws */
+struct TransgressionHandlerGuard
+{
+    TransgressionHandlerGuard()  noexcept { isHandlingTransgression = true;  }
+    ~TransgressionHandlerGuard() noexcept { isHandlingTransgression = false; }
+};
+
+/** Throwing while another exception is propagating would call std::terminate() */
+static inline bool isExceptionInFlight() noexcept
+{
+#if defined(__cpp_lib_uncaught_exceptions)
+    return std::uncaught_exceptions() > 0;
+#else
+    return std::uncaught_exception();
+#endif
+}
+
 template<class ExceptionHandler>
 static bool handleTransgression(const char* optionalMsg, std::size_t size, ExceptionHandler exceptionHandler)
 {
-    assert(MemorySentinel::getInstance().isArmed());
+    assert(isHijackActive);
     
+    // NOTE: the quota applies to allocations only -- deallocations (size == 0) are always a transgression
     int availableQuota = MemorySentinel::getRemainingAllocationQuota();
-    if (availableQuota > 0 && size <= availableQuota) {
+    if (size > 0 && availableQuota > 0 && size <= static_cast<std::size_t>(availableQuota)) {
         MemorySentinel::setAllocationQuota(availableQuota - static_cast<int>(size));
         printf("[MemorySentinel]: permitted allocation in %s - %zu Bytes quota remaining\n",
                optionalMsg, static_cast<std::size_t>(MemorySentinel::getRemainingAllocationQuota()));
@@ -51,7 +86,10 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, Excep
     switch (MemorySentinel::getTransgressionBehaviour())
     {
         case MemorySentinel::TransgressionBehaviour::THROW_EXCEPTION: {
-            exceptionHandler();
+            // While unwinding, we can only register the transgression -- throwing would terminate
+            if (!isExceptionInFlight()) {
+                exceptionHandler();
+            }
             return false;
         }
         case MemorySentinel::TransgressionBehaviour::LOG: {
@@ -70,26 +108,18 @@ static bool handleTransgression(const char* optionalMsg, std::size_t size, Excep
     return false;
 }
 
-// Using pattern described here: https://stackoverflow.com/a/17850402/649700
-static bool isHijackActive = false;
-
 /** exception-throwing variant */
 static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(false)
 {
-    // Disabling 'hijack' while running 'trangression handler'
-    isHijackActive = false;
-    auto retValue = handleTransgression(msg, size, handleTransgressionException);
-    isHijackActive = true;
-    return retValue;
+    TransgressionHandlerGuard guard;
+    return handleTransgression(msg, size, handleTransgressionException);
 }
 /** no-except variant */
 static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept(true)
 {
-    // Disabling 'hijack' while running 'trangression handler'
-    isHijackActive = false;
-    auto retValue = handleTransgression(msg, size, [](){ return false; }); // dummy transgression handler simply return false in case an exception occurs
-    isHijackActive = true;
-    return retValue;
+    TransgressionHandlerGuard guard;
+    // dummy transgression handler simply returns false in case an exception occurs
+    return handleTransgression(msg, size, [](){ return false; });
 }
 
 /** Deallocating a nullptr (free / delete / delete[]) is a no-op and must never count as a transgression */
@@ -157,7 +187,7 @@ void* malloc(size_t size)
     if (builtinMalloc == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with malloc", size);
     }
     return builtinMalloc(size);
@@ -168,7 +198,7 @@ void* calloc(size_t num, size_t size)
     if (builtinCalloc == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with calloc", size);
     }
     return builtinCalloc(num, size);
@@ -179,7 +209,7 @@ void* realloc(void* ptr, size_t size)
     if (builtinRealloc == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with realloc", size);
     }
     return builtinRealloc(ptr, size);
@@ -192,7 +222,7 @@ void free(void* ptr)
     }
     if (isNoOpDealloc(ptr)) { return; }
 
-    if (isHijackActive) {
+    if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
         hijack("deallocation with free", 0, nt);
     }
@@ -209,7 +239,7 @@ extern "C" void* memalign(size_t alignment, size_t size)
     if (builtinMemalign == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with memalign", size);
     }
     return builtinMemalign(alignment, size);
@@ -221,7 +251,7 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size)
     if (builtinMalloc == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with aligned_alloc", size);
     }
     if (builtinMemalign != nullptr) {
@@ -239,7 +269,7 @@ extern "C" int posix_memalign(void** memptr, size_t alignment, size_t size)
     if (builtinMalloc == nullptr) {
         initMallocHijack();
     }
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with posix_memalign", size);
     }
     if (builtinPosixMemalign != nullptr) {
@@ -274,7 +304,7 @@ void builtinFree(void* ptr)
 // MARK: - new
 void* operator new(std::size_t size) noexcept(false)
 {
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with new", size);
         return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
     }
@@ -287,7 +317,7 @@ void* operator new(std::size_t size) noexcept(false)
 // MARK: - new[]
 void* operator new[](std::size_t size) noexcept(false)
 {
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with new[]", size);
         return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
     }
@@ -297,7 +327,7 @@ void* operator new[](std::size_t size) noexcept(false)
 // MARK: - new noexcept
 void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with new (nothrow)", size, nt); // will always return false
         return nullptr; // convention
     }
@@ -307,7 +337,7 @@ void* operator new(std::size_t size, std::nothrow_t const& nt) noexcept(true)
 // MARK: - new[] noexcept
 void* operator new[](std::size_t size, std::nothrow_t const& nt) noexcept(true)
 {
-    if (isHijackActive) {
+    if (shouldHijack()) {
         hijack("allocation with new[] (nothrow)", size, nt); // will always return false
         return nullptr; // convention
     }
@@ -319,7 +349,7 @@ void operator delete(void* ptr) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
-    if (isHijackActive) {
+    if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
         hijack("deallocation with delete", 0, nt);
         builtinFree(ptr); // free the memory with the 'un-hijacked' free.
@@ -333,7 +363,7 @@ void operator delete[](void* ptr) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
-    if (isHijackActive) {
+    if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
         hijack("deallocation with delete[]", 0, nt);
         builtinFree(ptr); // free the memory with the 'un-hijacked' free.

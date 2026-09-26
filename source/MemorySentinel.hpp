@@ -32,7 +32,11 @@ public:
         SILENT,
     };
 
-    /** Returns a MemorySentinel for the current thread. */
+    /**
+     * Returns the MemorySentinel of the calling thread.
+     * NOTE: arming is process-wide (allocations on any thread are intercepted), but a transgression
+     * is registered in the sentinel of the thread that allocated.
+     */
     static MemorySentinel& getInstance() noexcept;
     
     void setArmed(bool value) noexcept;
@@ -41,6 +45,7 @@ public:
     static void setTransgressionBehaviour(TransgressionBehaviour b) noexcept { m_transgressionBehaviour.store(b); }
     static TransgressionBehaviour getTransgressionBehaviour() noexcept { return m_transgressionBehaviour.load(); }
 
+    /** Number of bytes that may be allocated before a transgression is registered (deallocations are never permitted) */
     static void setAllocationQuota(int numBytes) noexcept { m_allocationQuota.store(numBytes); }
     static int getRemainingAllocationQuota() noexcept { return m_allocationQuota.load(); }
 
