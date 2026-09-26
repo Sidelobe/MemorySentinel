@@ -114,7 +114,10 @@ static decltype(auto) hijack(const char* msg, std::size_t size = 0) noexcept(fal
     TransgressionHandlerGuard guard;
     return handleTransgression(msg, size, handleTransgressionException);
 }
-/** no-except variant */
+/**
+ * no-except variant -- also used for all deallocations, which pass size 0: they must never consume
+ * the allocation quota, since freeing memory is a transgression regardless of how much quota is left.
+ */
 static decltype(auto) hijack(const char* msg, std::size_t size, std::nothrow_t const&) noexcept(true)
 {
     TransgressionHandlerGuard guard;
@@ -349,13 +352,13 @@ void operator delete(void* ptr) noexcept(true)
     }
 }
 
-void operator delete(void* ptr, std::size_t size) noexcept(true)
+void operator delete(void* ptr, std::size_t /*size*/) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
     if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
-        hijack("deallocation with delete(sz)", size, nt);
+        hijack("deallocation with delete(sz)", 0, nt);
         builtinFree(ptr); // free the memory with the 'un-hijacked' free.
     } else {
         std::free(ptr);
@@ -376,13 +379,13 @@ void operator delete[](void* ptr) noexcept(true)
     }
 }
 
-void operator delete[](void* ptr, std::size_t size) noexcept(true)
+void operator delete[](void* ptr, std::size_t /*size*/) noexcept(true)
 {
     if (isNoOpDealloc(ptr)) { return; }
 
     if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
-        hijack("deallocation with delete[](sz)", size, nt);
+        hijack("deallocation with delete[](sz)", 0, nt);
         builtinFree(ptr); // free the memory with the 'un-hijacked' free.
     } else {
         std::free(ptr);
