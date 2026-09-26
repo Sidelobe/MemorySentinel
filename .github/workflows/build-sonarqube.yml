@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: 'bw-output' # Directory where build-wrapper output will be placed
-      cxx: g++-15
-      cc: gcc-15
+      cxx: g++-14
+      cc: gcc-14
     steps:
     - uses: actions/checkout@v6
       with:
