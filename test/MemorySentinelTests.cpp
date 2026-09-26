@@ -537,6 +537,22 @@ TEST_CASE("MemorySentinel Tests: allocation quota")
         REQUIRE(remaining == quota); // deallocations never consume quota
     }
 
+#if defined(__clang__) || defined(__GNUC__)
+    SECTION("calloc consumes the total size, not the size of a single element") {
+        MemorySentinel::setAllocationQuota(quota);
+        sentinel.setArmed(true);
+        void* m = allocWithCalloc(); // calloc(32, sizeof(float))
+        const int remaining = MemorySentinel::getRemainingAllocationQuota();
+        const bool detected = sentinel.getAndClearTransgressionsOccured();
+        sentinel.setArmed(false);
+
+        REQUIRE(m != nullptr);
+        REQUIRE_FALSE(detected);
+        REQUIRE(remaining == quota - arraySize);
+        std::free(m); // clean up
+    }
+#endif
+
     MemorySentinel::setAllocationQuota(0);
 }
 
@@ -667,10 +683,14 @@ TEST_CASE("MemorySentinel Tests: zero-size allocation")
     MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
     sentinel.clearTransgressions();
 
-    // a 0-byte request must still yield a valid pointer
+    // a 0-byte request must still yield a valid pointer -- new / new[] must never return nullptr
     void* zeroBytes = operator new(0);
     REQUIRE(zeroBytes != nullptr);
     operator delete(zeroBytes);
+
+    void* zeroBytesArray = operator new[](0);
+    REQUIRE(zeroBytesArray != nullptr);
+    operator delete[](zeroBytesArray);
 
     sentinel.setArmed(true);
     void* zeroBytesArmed = operator new(0, std::nothrow);
@@ -679,4 +699,32 @@ TEST_CASE("MemorySentinel Tests: zero-size allocation")
 
     REQUIRE(zeroBytesArmed == nullptr);
     REQUIRE(detected);
+}
+
+TEST_CASE("MemorySentinel Tests: allocations are untouched while not armed")
+{
+    MemorySentinel& sentinel = MemorySentinel::getInstance();
+    MemorySentinel::setAllocationQuota(0);
+    MemorySentinel::setTransgressionBehaviour(MemorySentinel::TransgressionBehaviour::SILENT);
+    sentinel.clearTransgressions();
+    sentinel.setArmed(false);
+
+    // the nothrow variants behave like the regular ones while not armed
+    void* nothrowObject = operator new(32, std::nothrow);
+    void* nothrowArray  = operator new[](32, std::nothrow);
+    void* object        = operator new(32);
+    void* array         = operator new[](32);
+
+    REQUIRE(nothrowObject != nullptr);
+    REQUIRE(nothrowArray != nullptr);
+    REQUIRE(object != nullptr);
+    REQUIRE(array != nullptr);
+    REQUIRE_FALSE(sentinel.hasTransgressionOccured());
+
+    operator delete(nothrowObject);
+    operator delete[](nothrowArray);
+    operator delete(object);
+    operator delete[](array);
+
+    REQUIRE_FALSE(sentinel.hasTransgressionOccured());
 }

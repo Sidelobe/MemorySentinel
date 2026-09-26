@@ -182,11 +182,17 @@ static inline bool isValidAlignment(size_t alignment) noexcept
     return alignment != 0 && (alignment % sizeof(void*)) == 0 && (alignment & (alignment - 1)) == 0;
 }
 
-void* malloc(size_t size)
+/** initMallocHijack() resolves all pointers at once, so a single guard suffices for all allocators */
+static inline void ensureInitialized()
 {
     if (builtinMalloc == nullptr) {
         initMallocHijack();
     }
+}
+
+void* malloc(size_t size)
+{
+    ensureInitialized();
     if (shouldHijack()) {
         hijack("allocation with malloc", size);
     }
@@ -195,20 +201,16 @@ void* malloc(size_t size)
 
 void* calloc(size_t num, size_t size)
 {
-    if (builtinCalloc == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (shouldHijack()) {
-        hijack("allocation with calloc", size);
+        hijack("allocation with calloc", num * size);
     }
     return builtinCalloc(num, size);
 }
 
 void* realloc(void* ptr, size_t size)
 {
-    if (builtinRealloc == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (shouldHijack()) {
         hijack("allocation with realloc", size);
     }
@@ -217,9 +219,7 @@ void* realloc(void* ptr, size_t size)
 
 void free(void* ptr)
 {
-    if (builtinFree == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (isNoOpDealloc(ptr)) { return; }
 
     if (shouldHijack()) {
@@ -236,9 +236,7 @@ void free(void* ptr)
 /** memalign is a GLIBC extension -- it does not exist e.g. on macOS */
 extern "C" void* memalign(size_t alignment, size_t size)
 {
-    if (builtinMemalign == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (shouldHijack()) {
         hijack("allocation with memalign", size);
     }
@@ -248,27 +246,16 @@ extern "C" void* memalign(size_t alignment, size_t size)
 
 extern "C" void* aligned_alloc(size_t alignment, size_t size)
 {
-    if (builtinMalloc == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (shouldHijack()) {
         hijack("allocation with aligned_alloc", size);
     }
-    if (builtinMemalign != nullptr) {
-        return builtinMemalign(alignment, size);
-    }
-    void* ptr = nullptr;
-    if (builtinPosixMemalign == nullptr || builtinPosixMemalign(&ptr, alignment, size) != 0) {
-        return nullptr;
-    }
-    return ptr;
+    return builtinMemalign(alignment, size);
 }
 
 extern "C" int posix_memalign(void** memptr, size_t alignment, size_t size)
 {
-    if (builtinMalloc == nullptr) {
-        initMallocHijack();
-    }
+    ensureInitialized();
     if (shouldHijack()) {
         hijack("allocation with posix_memalign", size);
     }
@@ -276,7 +263,8 @@ extern "C" int posix_memalign(void** memptr, size_t alignment, size_t size)
         return builtinPosixMemalign(memptr, alignment, size);
     }
 
-    // No 'builtin' posix_memalign available (GLIBC): emulate it on top of memalign
+    // GLIBC exports no __libc_posix_memalign entry point, and calling the real posix_memalign here would simply
+    // re-enter this hijack. We route to __libc_memalign and handle the return codes.
     if (memptr == nullptr || !isValidAlignment(alignment)) {
         return EINVAL;
     }
@@ -320,6 +308,9 @@ void* operator new[](std::size_t size) noexcept(false)
     if (shouldHijack()) {
         hijack("allocation with new[]", size);
         return builtinMalloc(size); // allocate the memory with the 'un-hijacked' malloc.
+    }
+    if (size == 0) { // Handle 0-byte requests by treating them as 1-byte requests
+      size = 1;
     }
     return std::malloc(size);
 }
