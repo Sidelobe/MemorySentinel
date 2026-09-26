@@ -349,6 +349,19 @@ void operator delete(void* ptr) noexcept(true)
     }
 }
 
+void operator delete(void* ptr, std::size_t size) noexcept(true)
+{
+    if (isNoOpDealloc(ptr)) { return; }
+
+    if (shouldHijack()) {
+        std::nothrow_t nt; // force non-throwing overload with tag
+        hijack("deallocation with delete(sz)", size, nt);
+        builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+    } else {
+        std::free(ptr);
+    }
+}
+
 // MARK: - delete[]  -- always noexcept
 void operator delete[](void* ptr) noexcept(true)
 {
@@ -357,6 +370,19 @@ void operator delete[](void* ptr) noexcept(true)
     if (shouldHijack()) {
         std::nothrow_t nt; // force non-throwing overload with tag
         hijack("deallocation with delete[]", 0, nt);
+        builtinFree(ptr); // free the memory with the 'un-hijacked' free.
+    } else {
+        std::free(ptr);
+    }
+}
+
+void operator delete[](void* ptr, std::size_t size) noexcept(true)
+{
+    if (isNoOpDealloc(ptr)) { return; }
+
+    if (shouldHijack()) {
+        std::nothrow_t nt; // force non-throwing overload with tag
+        hijack("deallocation with delete[](sz)", size, nt);
         builtinFree(ptr); // free the memory with the 'un-hijacked' free.
     } else {
         std::free(ptr);
