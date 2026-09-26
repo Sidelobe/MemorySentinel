@@ -284,10 +284,10 @@ TEST_CASE("MemorySentinel Tests: zero allocation quota (default)")
     
     // After tests, disarm Sentinel
     sentinel.clearTransgressions();
+}
 
-    
-    // MARK: - ScopedMemorySentinel Tests (put into same test case to avoid weird issues on macos/release)
-
+TEST_CASE("ScopedMemorySentinel Tests")
+{
     SECTION("default behaviour") {
         ScopedMemorySentinel sentinel;
         // THIS WILL ASSERT (default behaviour)
