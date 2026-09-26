@@ -5,11 +5,12 @@ on:
 jobs:
   build:
     name: Linux, GCC, Release, Coverage & SonarQube
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       BUILD_WRAPPER_OUT_DIR: 'bw-output' # Directory where build-wrapper output will be placed
-      cxx: g++-11
-      cc: gcc-11
+      cxx: g++-14
+      cc: gcc-14
+      gcov: gcov-14 # NOTE: gcov must match the compiler that generated the coverage data
     steps:
     - uses: actions/checkout@v6
       with:
@@ -17,13 +18,14 @@ jobs:
         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
     - name: Install Toolchain
       run: |
+        sudo apt-get install -y g++-14 gcc-14
         pip3 install gcovr
         echo "Gcovr Updated!"
         gcovr --version
+        ${{env.gcov}} --version
         
-        # sudo apt-get install -y g++-11 gcc-11
     - name: Install Build Wrapper
-      uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6
+      uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v7
     - name: Setup & Cmake
       working-directory: deploy
       env:
@@ -44,7 +46,7 @@ jobs:
         cd ..
         mkdir -p report
         # Generate coverage report
-        gcovr -r .. -f ../source  --exclude-unreachable-branches --exclude-throw-branches --sonarqube -o report/coverage.xml 
+        gcovr -r .. -f ../source --gcov-executable ${{env.gcov}} --exclude-unreachable-branches --exclude-throw-branches --sonarqube -o report/coverage.xml 
         
     - name: SonarQube Scan
       uses: SonarSource/sonarqube-scan-action@v7
@@ -53,4 +55,4 @@ jobs:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
         args: >
-          --define sonar.cfamily.compile-commands=deploy/build/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json 
+          --define sonar.cfamily.compile-commands=deploy/build/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
