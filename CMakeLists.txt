@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
-#  ╔╦╗┌─┐┌┬┐┌─┐┬─┐┬ ┬  ╔═╗┌─┐┌┐┌┌┬┐┬┌┐┌┌─┐┬  
-#  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │  
+#  ╔╦╗┌─┐┌┬┐┌─┐┬─┐┬ ┬  ╔═╗┌─┐┌┐┌┌┬┐┬┌┐┌┌─┐┬
+#  ║║║├┤ ││││ │├┬┘└┬┘  ╚═╗├┤ │││ │ ││││├┤ │
 #  ╩ ╩└─┘┴ ┴└─┘┴└─ ┴   ╚═╝└─┘┘└┘ ┴ ┴┘└┘└─┘┴─┘
     
 ###########################################################
@@ -23,6 +23,7 @@ add_library(${LIB_NAME} ${source})
 
 # TEST TARGET
 set (TEST_NAME "${LIB_NAME}Test")
+
 file(GLOB_RECURSE source_test "test/*.[h,c]*")
 add_executable(${TEST_NAME} ${source_test})
 
@@ -59,9 +60,20 @@ if (POLICY CMP0110)
   cmake_policy(SET CMP0110 NEW)
 endif()
 
-## ENABLE THE USE OF CTEST 
+## ENABLE THE USE OF CTEST
 include("test/external-utils/catch2/Catch.cmake")
 
 #include(CTest) # this will generate lots of additional targets
 enable_testing()
-catch_discover_tests(${TEST_NAME})
+catch_discover_tests(${TEST_NAME} PROPERTIES LABELS ${TEST_NAME} TIMEOUT 300)
+
+
+# These tests rely on allocations actually being performed. These compile options should avoid the compiler
+# optimizing the allocations away.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  target_compile_options(${TEST_NAME} PRIVATE -fno-allocation-dce
+          -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_options(${TEST_NAME} PRIVATE -fno-builtin-operator-new -fno-builtin-operator-delete
+          -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free)
+endif()
